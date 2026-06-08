@@ -9,10 +9,13 @@ points-based games:
   once per day.
 - **Fishing** — a casual solo mini-game players can attempt up to 3 times per
   day for bonus points.
+- **Shop** — a small set of permanent upgrades players can buy with points to
+  gain an edge in either game.
 
 Both games feed into a single shared point economy with a server-wide
 leaderboard. The project is intentionally scoped small — minimal commands,
-minimal state, fast to build and maintain.
+minimal state, fast to build and maintain. The bot is expected to run for a
+**two-week event**, which informs the shop's pricing (see below).
 
 ## Tech Stack
 
@@ -33,18 +36,21 @@ A single JSON document stored in one JSONBin bin:
       "points": 100,
       "lastDuelAt": "2026-06-08T00:00:00Z",
       "fishCount": 0,
-      "lastFishDate": "2026-06-08"
+      "lastFishDate": "2026-06-08",
+      "ownedItems": ["lucky_compass", "better_bait"]
     }
   }
 }
 ```
 
-- `points` — shared currency across both games.
+- `points` — shared currency across both games and the shop.
 - `lastDuelAt` — ISO timestamp of the user's last completed duel; gates the
   once-per-day duel limit.
 - `fishCount` / `lastFishDate` — number of fishing attempts used today and the
   UTC date they apply to; reset when `lastFishDate` no longer matches today's
   UTC date.
+- `ownedItems` — list of shop item IDs the user has permanently purchased;
+  effects are applied automatically wherever relevant (see Shop section).
 
 ### Persistence Strategy
 
@@ -114,20 +120,47 @@ recorded).
    - A small random chance of a "big catch" bonus adds variety.
    - Every attempt (including a +0 result) counts toward the daily cap of 3.
 
+## Shop
+
+Permanent, one-time-purchase upgrades that give players a lasting edge. Each
+game has three tiers — a cheap quality-of-life pickup, a mid-tier mechanical
+edge, and a premium "best in slot" item. Pricing is deliberately tuned for the
+**two-week event window**: an active player (one duel/day, three fishing
+attempts/day) earns roughly 75–90 points/day, so a casual player can afford
+the cheap tier within a couple of days, and a dedicated player can realistically
+reach the premium tier by the event's end.
+
+| Item | Game | Effect | Price |
+|---|---|---|---|
+| 🧭 Lucky Compass | Battleship | Slightly better odds of going first in a duel | 60 pts |
+| 🛡️ Reinforced Hull | Battleship | One ship gains +1 cell of "armor" (survives one extra hit before sinking); auto-applied during ship placement | 150 pts |
+| 🔭 Admiral's Spyglass | Battleship | At the start of each duel, one random enemy ship cell is revealed | 280 pts |
+| 🪱 Better Bait | Fishing | Slightly increases the chance of a "big catch" bonus on every attempt | 60 pts |
+| 🎣 Quality Rod | Fishing | Widens the fast-reaction window (e.g. <1.5s instead of <1s counts as "fast"), making top-tier rewards easier to land | 150 pts |
+| ✨ Golden Lure | Fishing | Notably increases big-catch bonus chance and raises the minimum reward (no more "fish got away" results) | 280 pts |
+
+**Buying flow (`/shop`):** Bot posts the item list with **Buy** buttons. Each
+button shows price and is disabled if the player can't afford the item or
+already owns it. On purchase, points are deducted, the item ID is added to
+`ownedItems`, and effects apply automatically from then on — no activation
+step needed. `/inventory` lets a player view what they currently own.
+
 ## Commands
 
 | Command | Purpose |
 |---|---|
 | `/duel @user` | Challenge another user to a Battleship match |
 | `/fish` | Attempt to catch a fish for bonus points (up to 3/day) |
+| `/shop` | Browse and buy permanent upgrades with points |
+| `/inventory` | View your owned upgrades |
 | `/balance` | Check your own point total |
 | `/leaderboard` | Show the server's top point-holders |
 
 ## Shared Economy
 
-Both games write to the same `points` field on a user's record. `/leaderboard`
-ranks all known users by total `points` regardless of which game(s) they
-earned them through.
+Both games write to the same `points` field on a user's record, and the shop
+spends from that same balance. `/leaderboard` ranks all known users by total
+`points` regardless of which game(s) they earned them through.
 
 ## Error Handling & Edge Cases
 
@@ -137,14 +170,18 @@ earned them through.
   ephemeral message; no slot consumed.
 - **Challenge declined or expired** → ephemeral notice to the challenger; no
   penalty, no slot consumed.
+- **Insufficient points / already owned** in the shop → the relevant Buy
+  button is disabled; an attempted purchase replies ephemerally explaining why.
 - **JSONBin write failure** → retried with backoff; in-memory state remains
   authoritative so gameplay is never blocked by storage issues.
 
 ## Testing Approach
 
 - **Unit tests** for pure logic: point calculations (duel rewards, fishing
-  speed tiers), daily-limit reset logic (UTC date rollover for both duels and
-  fishing), and grid/ship-placement validation.
+  speed tiers, shop purchase deduction), daily-limit reset logic (UTC date
+  rollover for both duels and fishing), shop affordability/ownership checks,
+  and grid/ship-placement validation (including item-modified effects like
+  Reinforced Hull).
 - **Integration-style tests** for the in-memory cache + debounced JSONBin
   write-through (using a mocked JSONBin client): verifying batching, retry/
   backoff behavior, and that cache stays authoritative on write failure.
