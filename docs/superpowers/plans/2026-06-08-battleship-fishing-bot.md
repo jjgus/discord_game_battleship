@@ -4,7 +4,7 @@
 
 **Goal:** Build a Discord bot offering Battleship duels (once/day), a fishing mini-game (3x/day), a shared point economy, and a permanent-upgrade shop, backed by JSONBin.io storage.
 
-**Architecture:** A Node.js + discord.js v14 bot with pure, unit-tested modules for economy math, daily limits, grid/ship logic, and shop purchases; an in-memory cache that debounce-writes to JSONBin; and thin command files that wire Discord interactions to those modules. In-progress duel state lives in memory (matches are short-lived; no need to persist mid-match state).
+**Architecture:** A Node.js + discord.js v14 bot with pure, unit-tested modules for economy math, daily limits, grid/ship logic, and shop purchases; an in-memory cache that writes to JSONBin only on significant game events (duel resolution, fishing attempts, shop purchases) with a 5-second timeout and graceful error handling; and thin command files that wire Discord interactions to those modules. In-progress duel state lives in memory (matches are short-lived; no need to persist mid-match state).
 
 **Tech Stack:** Node.js (18+, for global `fetch`), discord.js v14, Jest for unit tests, JSONBin.io REST API for persistence, dotenv for local config.
 
@@ -273,6 +273,14 @@ describe('updateBin', () => {
       'JSONBin update failed with status 500'
     );
   });
+
+  test('throws when the request times out', async () => {
+    const fetchImpl = jest.fn().mockImplementation((_url, { signal }) =>
+      new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))
+    );
+
+    await expect(updateBin({ baseUrl, binId, apiKey, data: {}, fetchImpl, timeoutMs: 50 })).rejects.toThrow();
+  });
 });
 ```
 
@@ -299,21 +307,29 @@ async function fetchBin({ baseUrl, binId, apiKey, fetchImpl = fetch }) {
   return body.record;
 }
 
-async function updateBin({ baseUrl, binId, apiKey, data, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${baseUrl}/b/${binId}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Master-Key': apiKey,
-    },
-    body: JSON.stringify(data),
-  });
+async function updateBin({ baseUrl, binId, apiKey, data, fetchImpl = fetch, timeoutMs = 5000 }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    throw new Error(`JSONBin update failed with status ${response.status}`);
+  try {
+    const response = await fetchImpl(`${baseUrl}/b/${binId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': apiKey,
+      },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`JSONBin update failed with status ${response.status}`);
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timer);
   }
-
-  return response.json();
 }
 
 module.exports = { fetchBin, updateBin };
@@ -322,7 +338,7 @@ module.exports = { fetchBin, updateBin };
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx jest tests/storage/jsonbinClient.test.js`
-Expected: PASS (4 tests)
+Expected: PASS (5 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -333,7 +349,7 @@ git commit -m "feat: add JSONBin REST client wrapper"
 
 ---
 
-## Task 3: In-Memory Store with Debounced Write-Through
+## Task 3: In-Memory Store with Event-Driven Writes
 
 **Files:**
 - Create: `src/storage/store.js`
@@ -393,20 +409,24 @@ describe('store', () => {
     expect(updated.ownedItems).toEqual([]);
   });
 
-  test('flush writes the cache to JSONBin only when dirty', async () => {
+  test('save writes the full cache to JSONBin', async () => {
     const client = buildClient();
     const store = createStore({ jsonbinClient: client, baseUrl: 'url', binId: 'bin', apiKey: 'key' });
     await store.load();
+    store.updateUser('1', { points: 50 });
 
-    await store.flush();
-    expect(client.updateBin).not.toHaveBeenCalled();
+    await store.save();
 
-    store.getUser('1');
-    await store.flush();
     expect(client.updateBin).toHaveBeenCalledTimes(1);
+  });
 
-    await store.flush();
-    expect(client.updateBin).toHaveBeenCalledTimes(1);
+  test('save logs and swallows errors so the caller is not interrupted', async () => {
+    const client = buildClient();
+    client.updateBin = jest.fn().mockRejectedValue(new Error('network error'));
+    const store = createStore({ jsonbinClient: client, baseUrl: 'url', binId: 'bin', apiKey: 'key' });
+    await store.load();
+
+    await expect(store.save()).resolves.toBeUndefined();
   });
 });
 ```
@@ -420,24 +440,12 @@ Expected: FAIL with "Cannot find module '../../src/storage/store'"
 
 ```js
 // src/storage/store.js
-const DEFAULT_FLUSH_INTERVAL_MS = 20000;
-
 function defaultUser() {
   return { points: 0, lastDuelAt: null, fishCount: 0, lastFishDate: null, ownedItems: [] };
 }
 
-function createStore({
-  jsonbinClient,
-  baseUrl,
-  binId,
-  apiKey,
-  flushIntervalMs = DEFAULT_FLUSH_INTERVAL_MS,
-  setIntervalImpl = setInterval,
-  clearIntervalImpl = clearInterval,
-}) {
+function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
   let cache = { users: {} };
-  let dirty = false;
-  let timer = null;
 
   async function load() {
     cache = await jsonbinClient.fetchBin({ baseUrl, binId, apiKey });
@@ -450,46 +458,29 @@ function createStore({
   function getUser(userId) {
     if (!cache.users[userId]) {
       cache.users[userId] = defaultUser();
-      dirty = true;
     }
-    return cache.users[userId];
+    return { ...cache.users[userId] };
   }
 
   function updateUser(userId, updates) {
-    const user = getUser(userId);
+    const user = cache.users[userId] || defaultUser();
     cache.users[userId] = { ...user, ...updates };
-    dirty = true;
-    return cache.users[userId];
+    return { ...cache.users[userId] };
   }
 
   function getAllUsers() {
     return cache.users;
   }
 
-  async function flush() {
-    if (!dirty) {
-      return;
-    }
-    await jsonbinClient.updateBin({ baseUrl, binId, apiKey, data: cache });
-    dirty = false;
-  }
-
-  function startAutoFlush() {
-    timer = setIntervalImpl(() => {
-      flush().catch(() => {
-        // Cache stays authoritative; the next interval retries the write.
-      });
-    }, flushIntervalMs);
-  }
-
-  function stopAutoFlush() {
-    if (timer) {
-      clearIntervalImpl(timer);
-      timer = null;
+  async function save() {
+    try {
+      await jsonbinClient.updateBin({ baseUrl, binId, apiKey, data: cache });
+    } catch (err) {
+      console.error('JSONBin write failed:', err.message);
     }
   }
 
-  return { load, getUser, updateUser, getAllUsers, flush, startAutoFlush, stopAutoFlush };
+  return { load, getUser, updateUser, getAllUsers, save };
 }
 
 module.exports = { createStore };
@@ -498,13 +489,13 @@ module.exports = { createStore };
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx jest tests/storage/store.test.js`
-Expected: PASS (4 tests)
+Expected: PASS (5 tests)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/storage/store.js tests/storage/store.test.js
-git commit -m "feat: add in-memory store with debounced JSONBin write-through"
+git commit -m "feat: add in-memory store with event-driven JSONBin writes"
 ```
 
 ---
@@ -1882,7 +1873,6 @@ async function main() {
     apiKey: config.jsonbinApiKey,
   });
   await store.load();
-  store.startAutoFlush();
 
   const context = { store, matches: new Map() };
 
@@ -1913,12 +1903,6 @@ async function main() {
 
   client.once('clientReady', () => {
     console.log(`Logged in as ${client.user.tag}`);
-  });
-
-  process.on('SIGINT', async () => {
-    store.stopAutoFlush();
-    await store.flush();
-    process.exit(0);
   });
 
   await client.login(config.discordToken);
