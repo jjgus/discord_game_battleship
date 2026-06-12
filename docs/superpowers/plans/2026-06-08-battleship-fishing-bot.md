@@ -1927,7 +1927,7 @@ git commit -m "feat: add bot bootstrap and slash command deployment"
 
 **Prerequisites:** A test Discord server, a bot application with a token, and a JSONBin bin pre-seeded with `{"users": {}}`. Populate `.env` from `.env.example` with real values.
 
-- [ ] **Step 1: Register commands and start the bot**
+- [x] **Step 1: Register commands and start the bot**
 
 Run: `npm run deploy-commands`
 Expected: console logs `Registered 6 commands.`
@@ -1935,22 +1935,22 @@ Expected: console logs `Registered 6 commands.`
 Run: `npm start`
 Expected: console logs `Logged in as <BotName>#1234`
 
-- [ ] **Step 2: Verify the economy commands**
+- [x] **Step 2: Verify the economy commands**
 
 In the test server: run `/balance` (expect 0 points for a new user), then `/leaderboard` (expect either "No one has earned any points yet!" or a ranked list).
 
-- [ ] **Step 3: Verify fishing end-to-end**
+- [x] **Step 3: Verify fishing end-to-end**
 
 Run `/fish`, wait for "Fish on! Reel it in!", click **Reel In!** quickly and verify a points message appears and `/balance` reflects the new total. Run it 3 times and verify the 4th attempt is rejected with the daily-limit message.
 
-- [ ] **Step 4: Verify the shop and inventory**
+- [x] **Step 4: Verify the shop and inventory**
 
 Run `/shop`, confirm all 6 items display with correct prices and that affordability/ownership disables buttons appropriately. Buy an affordable item, verify points are deducted and `/inventory` shows it. Attempt to buy it again and confirm the "already own" message appears.
 
-- [ ] **Step 5: Verify the duel flow with two accounts**
+- [x] **Step 5: Verify the duel flow with two accounts**
 
 From a second test account, accept a `/duel` challenge, place fleets via DM, and play through a full match in the channel — confirming turn order, hit/miss feedback, win/loss point awards, and that both accounts are blocked from dueling again until the next UTC day.
 
-- [ ] **Step 6: Verify persistence survives a restart**
+- [x] **Step 6: Verify persistence survives a restart**
 
 Stop the bot (`Ctrl+C`), confirm the JSONBin bin now contains the updated user records (via the JSONBin dashboard or API), restart the bot, and confirm `/balance` still reflects the prior totals.
