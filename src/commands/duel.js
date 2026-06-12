@@ -141,4 +141,48 @@ async function announceTurn(channel, channelId, match) {
   });
 }
 
-module.exports = { data, execute, handlePlacement, announceTurn };
+async function handleShot(buttonInteraction, context) {
+  const [, channelId, shooterId, rowStr, colStr] = buttonInteraction.customId.split('_');
+
+  if (buttonInteraction.user.id !== shooterId) {
+    await buttonInteraction.reply({ content: "It's not your turn.", ephemeral: true });
+    return;
+  }
+
+  const match = context.matches.get(channelId);
+  const { match: updated, hit, sunk, targetId } = takeShot(match, shooterId, Number(rowStr), Number(colStr));
+  context.matches.set(channelId, updated);
+
+  await buttonInteraction.update({
+    content: `<@${shooterId}> fired at ${COLUMN_LETTERS[Number(colStr)]}${Number(rowStr) + 1} — it was a **${hit ? 'HIT' : 'miss'}**!`,
+    components: [],
+  });
+
+  if (sunk) {
+    await finishMatch(buttonInteraction.channel, channelId, shooterId, targetId, context);
+    return;
+  }
+
+  await announceTurn(buttonInteraction.channel, channelId, updated);
+}
+
+async function finishMatch(channel, channelId, winnerId, loserId, context) {
+  context.matches.delete(channelId);
+
+  const winnerPoints = duelReward(true);
+  const loserPoints = duelReward(false);
+  const now = new Date().toISOString();
+  const winner = context.store.getUser(winnerId);
+  const loser = context.store.getUser(loserId);
+
+  context.store.updateUser(winnerId, { points: winner.points + winnerPoints, lastDuelAt: now });
+  context.store.updateUser(loserId, { points: loser.points + loserPoints, lastDuelAt: now });
+  context.store.save();
+
+  await channel.send(
+    `🎉 <@${winnerId}> sank <@${loserId}>'s fleet and wins **+${winnerPoints} points**! ` +
+      `<@${loserId}> earns **+${loserPoints} points** for a good fight.`
+  );
+}
+
+module.exports = { data, execute, handlePlacement, handleShot };
