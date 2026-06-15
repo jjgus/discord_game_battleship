@@ -9,6 +9,7 @@ const {
   SHIP_LENGTHS,
 } = require('../games/battleship/duelManager');
 const { GRID_SIZE } = require('../games/battleship/grid');
+const { getOpponentForToday, getTodaysMatchup, recordResult } = require('../tournament/scheduler');
 
 const CHALLENGE_TIMEOUT_MS = 60 * 1000;
 const COLUMN_LETTERS = ['A', 'B', 'C', 'D', 'E'];
@@ -65,6 +66,33 @@ async function execute(interaction, context) {
   if (context.matches.has(interaction.channelId)) {
     await interaction.reply({ content: 'A Battleship match is already running in this channel!', ephemeral: true });
     return;
+  }
+
+  const tournament = context.store.getTournament();
+  if (tournament.active && tournament.participants.includes(challenger.id)) {
+    const scheduledOpponentId = getOpponentForToday(tournament, challenger.id);
+    if (!scheduledOpponentId) {
+      await interaction.reply({
+        content: "You don't have a scheduled match today — it's a bye day. Enjoy the rest!",
+        ephemeral: true,
+      });
+      return;
+    }
+    if (opponent.id !== scheduledOpponentId) {
+      await interaction.reply({
+        content: `The tournament has assigned you to duel <@${scheduledOpponentId}> today. Challenge them instead!`,
+        ephemeral: true,
+      });
+      return;
+    }
+    const matchup = getTodaysMatchup(tournament, challenger.id);
+    if (matchup && matchup.winner) {
+      await interaction.reply({
+        content: "Today's tournament match has already been played.",
+        ephemeral: true,
+      });
+      return;
+    }
   }
 
   if (!canDuel(context.store.getUser(challenger.id))) {
@@ -264,12 +292,20 @@ async function finishMatch(channel, channelId, winnerId, loserId, context) {
 
   const winnerPoints = duelReward(true);
   const loserPoints = duelReward(false);
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
   const winner = context.store.getUser(winnerId);
   const loser = context.store.getUser(loserId);
 
-  context.store.updateUser(winnerId, { points: winner.points + winnerPoints, lastDuelAt: now });
-  context.store.updateUser(loserId, { points: loser.points + loserPoints, lastDuelAt: now });
+  context.store.updateUser(winnerId, { points: winner.points + winnerPoints, lastDuelAt: nowIso });
+  context.store.updateUser(loserId, { points: loser.points + loserPoints, lastDuelAt: nowIso });
+
+  const tournament = context.store.getTournament();
+  if (tournament.active) {
+    const today = nowIso.slice(0, 10);
+    context.store.updateTournament(recordResult(tournament, winnerId, loserId, today));
+  }
+
   context.store.save();
 
   await channel.send(

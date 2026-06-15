@@ -2,12 +2,23 @@ function defaultUser() {
   return { points: 0, lastDuelAt: null, fishCount: 0, lastFishDate: null, ownedItems: [] };
 }
 
+function defaultTournament() {
+  return {
+    active: false,
+    startDate: null,
+    announcementChannelId: null,
+    pendingParticipants: [],
+    participants: [],
+    schedule: [],
+  };
+}
+
 function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
-  let cache = { users: {} };
+  let cache = { users: {}, tournament: defaultTournament() };
 
   async function load() {
     const data = await jsonbinClient.fetchBin({ baseUrl, binId, apiKey });
-    cache = { users: {}, ...data };
+    cache = { users: {}, tournament: defaultTournament(), ...data };
     return cache;
   }
 
@@ -28,6 +39,15 @@ function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
     return { ...cache.users };
   }
 
+  function getTournament() {
+    return { ...cache.tournament };
+  }
+
+  function updateTournament(updates) {
+    cache.tournament = { ...cache.tournament, ...updates };
+    return { ...cache.tournament };
+  }
+
   async function save() {
     try {
       await jsonbinClient.updateBin({ baseUrl, binId, apiKey, data: cache });
@@ -36,7 +56,7 @@ function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
     }
   }
 
-  return { load, getUser, updateUser, getAllUsers, save };
+  return { load, getUser, updateUser, getAllUsers, getTournament, updateTournament, save };
 }
 
 module.exports = { createStore };

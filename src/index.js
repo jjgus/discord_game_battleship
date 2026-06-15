@@ -9,8 +9,30 @@ const shop = require('./commands/shop');
 const inventory = require('./commands/inventory');
 const fish = require('./commands/fish');
 const duel = require('./commands/duel');
+const tournament = require('./commands/tournament');
+const { getTodaysEntry } = require('./tournament/scheduler');
 
 const JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3';
+const DAILY_CHECK_INTERVAL_MS = 60 * 1000;
+
+async function postDailyMatchups(client, store) {
+  const t = store.getTournament();
+  if (!t.active || !t.announcementChannelId) return;
+
+  const entry = getTodaysEntry(t);
+  if (!entry) return;
+
+  try {
+    const channel = await client.channels.fetch(t.announcementChannelId);
+    const lines = entry.matchups.map((m) => `⚔️ <@${m.p1}> vs <@${m.p2}>`);
+    await channel.send(
+      `📅 **Tournament — Day ${entry.day}** (${entry.date})\n${lines.join('\n')}\n` +
+      `Use \`/duel @opponent\` to play your match today!`
+    );
+  } catch (err) {
+    console.error('Daily announcement failed:', err.message);
+  }
+}
 
 async function main() {
   const config = loadConfig();
@@ -25,7 +47,9 @@ async function main() {
   const context = { store, matches: new Map(), fishingSessions: new Set() };
 
   const commands = new Collection();
-  [balance, leaderboard, shop, inventory, fish, duel].forEach((command) => commands.set(command.data.name, command));
+  [balance, leaderboard, shop, inventory, fish, duel, tournament].forEach((command) =>
+    commands.set(command.data.name, command)
+  );
 
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
 
@@ -49,8 +73,16 @@ async function main() {
     }
   });
 
-  client.once('clientReady', () => {
+  client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+
+    let lastAnnouncedDate = null;
+    setInterval(async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      if (lastAnnouncedDate === today) return;
+      lastAnnouncedDate = today;
+      await postDailyMatchups(client, store);
+    }, DAILY_CHECK_INTERVAL_MS);
   });
 
   await client.login(config.discordToken);

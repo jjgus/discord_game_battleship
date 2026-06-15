@@ -7,10 +7,11 @@ const shop = require('./commands/shop');
 const inventory = require('./commands/inventory');
 const fish = require('./commands/fish');
 const duel = require('./commands/duel');
+const tournament = require('./commands/tournament');
 
 async function main() {
   const config = loadConfig();
-  const commands = [balance, leaderboard, shop, inventory, fish, duel].map((command) => command.data.toJSON());
+  const commands = [balance, leaderboard, shop, inventory, fish, duel, tournament].map((command) => command.data.toJSON());
 
   const rest = new REST().setToken(config.discordToken);
   await rest.put(Routes.applicationGuildCommands(config.discordClientId, config.discordGuildId), { body: commands });
