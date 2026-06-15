@@ -136,6 +136,7 @@ function renderFleetGrid(gridId, fleet) {
   }
 }
 
+
 function isHitOnOpponent(key) {
   return state.opponentFleet.ships.some((ship) => ship.hits.includes(key));
 }
