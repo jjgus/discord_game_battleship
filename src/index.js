@@ -45,7 +45,8 @@ async function main() {
   });
   await store.load();
 
-  const webUrl = process.env.WEB_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const rawWebUrl = process.env.WEB_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const webUrl = rawWebUrl.startsWith('http') ? rawWebUrl : `https://${rawWebUrl}`;
   const context = {
     store,
     fishingSessions: new Set(),
