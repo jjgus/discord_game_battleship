@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚔️ Battle — Battleship</title>
+  <link rel="stylesheet" href="/game.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>⚔️ Battleship</h1>
+      <div id="status-bar"></div>
+    </header>
+
+    <main>
+      <!-- CONNECTING / loading battle state -->
+      <section id="phase-connecting">
+        <div class="spinner"></div>
+        <p>Loading battle…</p>
+      </section>
+
+      <!-- BATTLE -->
+      <section id="phase-battle" hidden>
+        <div id="turn-banner"></div>
+        <div id="spyglass-banner" hidden></div>
+        <div class="battle-area">
+          <div class="board">
+            <h3>Enemy Fleet</h3>
+            <div id="enemy-fleet-status" class="fleet-status"></div>
+            <div id="enemy-grid" class="grid"></div>
+          </div>
+          <div class="board">
+            <h3>Your Fleet</h3>
+            <div id="my-fleet-status" class="fleet-status"></div>
+            <div id="my-grid" class="grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- GAME OVER -->
+      <section id="phase-done" hidden>
+        <div id="result-box">
+          <div id="result-icon"></div>
+          <div id="result-title"></div>
+          <div id="result-sub"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/grid.js"></script>
+  <script src="/battle.js"></script>
+</body>
+</html>
