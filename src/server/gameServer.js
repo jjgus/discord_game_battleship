@@ -36,6 +36,27 @@ function isMatchActiveInChannel(channelId) {
   return channelToMatch.has(channelId);
 }
 
+function getSessionForChannel(channelId) {
+  const matchId = channelToMatch.get(channelId);
+  return matchId ? sessions.get(matchId) : null;
+}
+
+function cancelMatch(channelId) {
+  const matchId = channelToMatch.get(channelId);
+  if (!matchId) return null;
+  const session = sessions.get(matchId);
+  if (!session) return null;
+
+  session.phase = 'done';
+  for (const pid of session.playerIds) {
+    send(session.players[pid].ws, { type: 'cancelled', message: 'The duel was cancelled.' });
+  }
+
+  sessions.delete(matchId);
+  channelToMatch.delete(channelId);
+  return session;
+}
+
 function startGameServer({ port = 3000, store, discordClient } = {}) {
   const app = express();
   app.use(express.static(path.join(__dirname, '../../public')));
@@ -125,7 +146,12 @@ function startGameServer({ port = 3000, store, discordClient } = {}) {
     });
   });
 
-  httpServer.listen(port, () => {
+  httpServer.on('error', (err) => {
+    console.error(`Game server failed to start on port ${port}:`, err.message);
+    process.exit(1);
+  });
+
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`Game server listening on port ${port}`);
   });
 
@@ -308,4 +334,4 @@ async function endGame(session, winnerId, loserId, { store, discordClient }) {
   channelToMatch.delete(session.channelId);
 }
 
-module.exports = { startGameServer, createWebMatch, isMatchActiveInChannel };
+module.exports = { startGameServer, createWebMatch, isMatchActiveInChannel, getSessionForChannel, cancelMatch };

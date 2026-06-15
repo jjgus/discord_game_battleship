@@ -50,8 +50,12 @@ async function main() {
   // Bind the port BEFORE store.load() so Railway's health check never gets connection refused
   startGameServer({ port, store, discordClient: client });
 
-  // Load persisted data after the server is already listening
-  await store.load();
+  // Load persisted data — non-fatal so a JSONBin hiccup never kills the server
+  try {
+    await store.load();
+  } catch (err) {
+    console.error('store.load() failed, starting with empty state:', err.message);
+  }
 
   const rawWebUrl = process.env.WEB_URL || `http://localhost:${port}`;
   const webUrl = rawWebUrl.startsWith('http') ? rawWebUrl : `https://${rawWebUrl}`;

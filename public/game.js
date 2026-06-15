@@ -132,6 +132,15 @@ function handleServerMessage(msg) {
       }
       break;
 
+    case 'cancelled':
+      state.phase = 'done';
+      showPhase('done');
+      document.getElementById('result-icon').textContent = '🚫';
+      document.getElementById('result-title').textContent = 'Duel Cancelled';
+      document.getElementById('result-title').style.color = '#94a3b8';
+      document.getElementById('result-sub').textContent = msg.message || 'The duel was cancelled.';
+      break;
+
     case 'opponentDisconnected':
       showStatus('⚠️ Opponent disconnected');
       break;

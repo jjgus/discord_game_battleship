@@ -10,15 +10,24 @@ const {
 } = require('../games/battleship/duelManager');
 const { GRID_SIZE, cellKey } = require('../games/battleship/grid');
 const { getOpponentForToday, getTodaysMatchup, recordResult } = require('../tournament/scheduler');
-const { isMatchActiveInChannel } = require('../server/gameServer');
+const { PermissionFlagsBits } = require('discord.js');
+const { isMatchActiveInChannel, getSessionForChannel, cancelMatch } = require('../server/gameServer');
 
 const CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000;
 const COLUMN_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 const data = new SlashCommandBuilder()
   .setName('duel')
-  .setDescription('Challenge another user to a Battleship match')
-  .addUserOption((option) => option.setName('opponent').setDescription('Who to challenge').setRequired(true));
+  .setDescription('Battleship duel commands')
+  .addSubcommand((sub) =>
+    sub
+      .setName('challenge')
+      .setDescription('Challenge another user to a Battleship match')
+      .addUserOption((option) => option.setName('opponent').setDescription('Who to challenge').setRequired(true))
+  )
+  .addSubcommand((sub) =>
+    sub.setName('cancel').setDescription('Cancel the ongoing duel in this channel')
+  );
 
 function placementGridButtons(customIdPrefix, fleet) {
   const shipCells = new Set();
@@ -120,6 +129,32 @@ function getRandomShipCell(fleet) {
 }
 
 async function execute(interaction, context) {
+  const sub = interaction.options.getSubcommand();
+  if (sub === 'cancel') return handleCancel(interaction, context);
+  return handleChallenge(interaction, context);
+}
+
+async function handleCancel(interaction, context) {
+  const session = getSessionForChannel(interaction.channelId);
+  if (!session) {
+    await interaction.reply({ content: 'There is no active duel in this channel.', ephemeral: true });
+    return;
+  }
+
+  const isPlayer = session.playerIds.includes(interaction.user.id);
+  const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+  if (!isPlayer && !isAdmin) {
+    await interaction.reply({ content: 'Only the players in the duel or an admin can cancel it.', ephemeral: true });
+    return;
+  }
+
+  cancelMatch(interaction.channelId);
+  await interaction.reply(
+    `🚫 The duel between <@${session.playerIds[0]}> and <@${session.playerIds[1]}> has been cancelled by <@${interaction.user.id}>.`
+  );
+}
+
+async function handleChallenge(interaction, context) {
   const challenger = interaction.user;
   const opponent = interaction.options.getUser('opponent');
 
