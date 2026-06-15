@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const fs = require('fs');
 const { randomUUID } = require('crypto');
 const { createFleet, addShip, addShipFromCells, fireAt, isFleetSunk, cellKey } = require('../games/battleship/grid');
 const { SHIP_CONFIGS } = require('../games/battleship/duelManager');
@@ -81,20 +82,40 @@ function startGameServer({ port = 3000, store, discordClient } = {}) {
 
   app.get('/game/:matchId', (req, res) => {
     const session = sessions.get(req.params.matchId);
-    if (!session) {
-      return res.status(404).send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head><meta charset="UTF-8"><title>Game Not Found</title>
-        <style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
-        .box{text-align:center;padding:40px;background:#1e293b;border-radius:16px;border:1px solid #334155;}
-        h1{font-size:2rem;margin-bottom:12px;color:#ef4444;}p{color:#94a3b8;}</style></head>
-        <body><div class="box"><h1>Game Not Found</h1>
-        <p>This game has already ended or the link is invalid.<br>Start a new duel on Discord to get a fresh link.</p>
-        </div></body></html>
-      `);
+    const playerId = req.query.p;
+
+    if (!session || !session.players[playerId]) {
+      return res.status(404).send(notFoundPage('Game Not Found', 'This game has ended or the link is invalid.'));
     }
-    res.sendFile(path.join(__dirname, '../../public/game.html'));
+
+    if (session.phase === 'battle') {
+      return res.redirect(302, `/battle/${req.params.matchId}?p=${playerId}`);
+    }
+
+    const otherId = session.playerIds.find((id) => id !== playerId);
+    const gameData = {
+      matchId: session.matchId,
+      playerId,
+      playerName: session.players[playerId].name,
+      opponentName: session.players[otherId].name,
+      shipConfigs: SHIP_CONFIGS,
+    };
+
+    const html = fs.readFileSync(path.join(__dirname, '../../public/game.html'), 'utf8');
+    const injected = html.replace('window.__GAME_DATA__ = {}', `window.__GAME_DATA__ = ${JSON.stringify(gameData)}`);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(injected);
+  });
+
+  app.get('/battle/:matchId', (req, res) => {
+    const session = sessions.get(req.params.matchId);
+    const playerId = req.query.p;
+
+    if (!session || !session.players[playerId] || session.phase !== 'battle') {
+      return res.status(404).send(notFoundPage('Battle Not Found', 'This battle has ended or the link is invalid.'));
+    }
+
+    res.sendFile(path.join(__dirname, '../../public/battle.html'));
   });
 
   const httpServer = http.createServer(app);
@@ -139,10 +160,26 @@ function startGameServer({ port = 3000, store, discordClient } = {}) {
     const otherId = session.playerIds.find((id) => id !== playerId);
     const other = session.players[otherId];
 
-    if (other.ws && other.ws.readyState === 1) {
-      sendBothWelcome(session);
+    if (session.phase === 'battle') {
+      sendBattleResume(session, playerId, ws);
+    } else if (session.phase === 'done') {
+      send(ws, { type: 'cancelled', message: 'This game has already ended.' });
+      ws.close();
     } else {
-      send(ws, { type: 'waiting', message: 'Waiting for your opponent to connect...' });
+      // placement — __GAME_DATA__ handles initial render; only send welcome on reconnect
+      const isReconnect = session.shipCursor[playerId] > 0;
+      if (isReconnect) {
+        send(ws, {
+          type: 'welcome',
+          opponentName: other.name,
+          items: session.items[playerId] || [],
+          shipConfigs: SHIP_CONFIGS,
+          fleet: player.fleet,
+          currentShipIndex: session.shipCursor[playerId],
+        });
+      } else {
+        send(ws, { type: 'connected' });
+      }
     }
 
     ws.on('message', (data) => {
@@ -179,6 +216,14 @@ function send(ws, msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
 }
 
+function notFoundPage(title, message) {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${title}</title>
+  <style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
+  .box{text-align:center;padding:40px;background:#1e293b;border-radius:16px;border:1px solid #334155;}
+  h1{font-size:2rem;margin-bottom:12px;color:#ef4444;}p{color:#94a3b8;}</style></head>
+  <body><div class="box"><h1>${title}</h1><p>${message}<br>Start a new duel on Discord to get a fresh link.</p></div></body></html>`;
+}
+
 function sendBothWelcome(session) {
   for (const pid of session.playerIds) {
     const p = session.players[pid];
@@ -192,6 +237,21 @@ function sendBothWelcome(session) {
       shipConfigs: SHIP_CONFIGS,
     });
   }
+}
+
+function sendBattleResume(session, playerId, ws) {
+  const player = session.players[playerId];
+  const otherId = session.playerIds.find((id) => id !== playerId);
+  const other = session.players[otherId];
+  send(ws, {
+    type: 'battleResume',
+    myFleet: player.fleet,
+    myShots: player.shots,
+    opponentFleet: other.fleet,
+    opponentShotsOnMe: other.shots,
+    yourTurn: session.turn === playerId,
+    spyglassCells: [],
+  });
 }
 
 function handleMessage(session, playerId, msg, { store, discordClient }) {
