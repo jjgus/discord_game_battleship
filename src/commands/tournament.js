@@ -34,6 +34,9 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName('schedule').setDescription('View the full tournament schedule')
+  )
+  .addSubcommand((sub) =>
+    sub.setName('stop').setDescription('Stop the tournament and clear all data (admin only)')
   );
 
 async function execute(interaction, { store }) {
@@ -41,6 +44,7 @@ async function execute(interaction, { store }) {
 
   if (sub === 'register') return handleRegister(interaction, store);
   if (sub === 'begin') return handleBegin(interaction, store);
+  if (sub === 'stop') return handleStop(interaction, store);
   if (sub === 'today') return handleToday(interaction, store);
   if (sub === 'standings') return handleStandings(interaction, store);
   if (sub === 'schedule') return handleSchedule(interaction, store);
@@ -116,6 +120,31 @@ async function handleBegin(interaction, store) {
     `📅 Runs from **${formatDate(startDate)}** to **${formatDate(endDate)}**.\n` +
     `Use \`/tournament today\` to see your daily matchup. Daily matchups will be posted here each morning.`
   );
+}
+
+async function handleStop(interaction, store) {
+  if (!interaction.memberPermissions || !interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: 'Only administrators can stop the tournament.', ephemeral: true });
+    return;
+  }
+
+  const tournament = store.getTournament();
+  if (!tournament.active && tournament.pendingParticipants.length === 0) {
+    await interaction.reply({ content: 'No tournament is currently running or pending.', ephemeral: true });
+    return;
+  }
+
+  store.updateTournament({
+    active: false,
+    startDate: null,
+    announcementChannelId: null,
+    pendingParticipants: [],
+    participants: [],
+    schedule: [],
+  });
+  store.save();
+
+  await interaction.reply('🛑 **Tournament stopped.** All registration and match data has been cleared. Players can register again with `/tournament register`.');
 }
 
 async function handleToday(interaction, store) {

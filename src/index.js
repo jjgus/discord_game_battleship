@@ -43,9 +43,17 @@ async function main() {
     binId: config.jsonbinBinId,
     apiKey: config.jsonbinApiKey,
   });
+
+  const port = parseInt(process.env.PORT || '3000', 10);
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
+
+  // Bind the port BEFORE store.load() so Railway's health check never gets connection refused
+  startGameServer({ port, store, discordClient: client });
+
+  // Load persisted data after the server is already listening
   await store.load();
 
-  const rawWebUrl = process.env.WEB_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const rawWebUrl = process.env.WEB_URL || `http://localhost:${port}`;
   const webUrl = rawWebUrl.startsWith('http') ? rawWebUrl : `https://${rawWebUrl}`;
   const context = {
     store,
@@ -58,12 +66,6 @@ async function main() {
   [balance, leaderboard, shop, inventory, fish, duel, tournament].forEach((command) =>
     commands.set(command.data.name, command)
   );
-
-  const port = parseInt(process.env.PORT || '3000', 10);
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
-
-  // Start the web server immediately — discordClient ref is live by the time any game ends
-  startGameServer({ port, store, discordClient: client });
 
   client.on('interactionCreate', async (interaction) => {
     try {
