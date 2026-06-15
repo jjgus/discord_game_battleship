@@ -88,6 +88,15 @@ main {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@keyframes flash-pop {
+  0%   { transform: scale(1.18); filter: brightness(1.6); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+
+.cell.flash {
+  animation: flash-pop 0.4s ease-out forwards;
+}
+
 section {
   display: flex;
   flex-direction: column;

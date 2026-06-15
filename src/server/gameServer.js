@@ -59,7 +59,11 @@ function cancelMatch(channelId) {
 
 function startGameServer({ port = 3000, store, discordClient } = {}) {
   const app = express();
-  app.use(express.static(path.join(__dirname, '../../public')));
+  app.use(express.static(path.join(__dirname, '../../public'), {
+    maxAge: '1h',
+    etag: true,
+    lastModified: true,
+  }));
 
   app.get('/', (req, res) => {
     res.send(`
