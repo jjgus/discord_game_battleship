@@ -22,7 +22,7 @@ async function main() {
   });
   await store.load();
 
-  const context = { store, matches: new Map() };
+  const context = { store, matches: new Map(), fishingSessions: new Set() };
 
   const commands = new Collection();
   [balance, leaderboard, shop, inventory, fish, duel].forEach((command) => commands.set(command.data.name, command));

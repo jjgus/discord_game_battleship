@@ -11,8 +11,10 @@ function reelButtonRow() {
   );
 }
 
-async function execute(interaction, { store }) {
-  const user = store.getUser(interaction.user.id);
+async function execute(interaction, context) {
+  const { store, fishingSessions } = context;
+  const userId = interaction.user.id;
+  const user = store.getUser(userId);
 
   if (fishAttemptsRemaining(user) <= 0) {
     await interaction.reply({
@@ -22,12 +24,28 @@ async function execute(interaction, { store }) {
     return;
   }
 
+  if (fishingSessions.has(userId)) {
+    await interaction.reply({
+      content: 'Your line is already in the water — wait for the fish to bite!',
+      ephemeral: true,
+    });
+    return;
+  }
+
+  fishingSessions.add(userId);
   const message = await interaction.reply({ content: 'Casting your line... 🎣', fetchReply: true });
 
-  setTimeout(() => startBite(message, interaction.user.id, store), randomDelayMs());
+  setTimeout(async () => {
+    try {
+      await startBite(message, userId, store, fishingSessions);
+    } catch (err) {
+      fishingSessions.delete(userId);
+      console.error('startBite error:', err.message);
+    }
+  }, randomDelayMs());
 }
 
-async function startBite(message, userId, store) {
+async function startBite(message, userId, store, fishingSessions) {
   const bitMessage = await message.edit({ content: 'Fish on! Reel it in!', components: [reelButtonRow()] });
   const castAt = Date.now();
   let collected = false;
@@ -40,22 +58,35 @@ async function startBite(message, userId, store) {
 
   collector.on('collect', async (buttonInteraction) => {
     collected = true;
-    await resolveCatch({ buttonInteraction, message: bitMessage, store, userId, reactionMs: Date.now() - castAt });
+    try {
+      await resolveCatch({ buttonInteraction, message: bitMessage, store, userId, reactionMs: Date.now() - castAt, fishingSessions });
+    } catch (err) {
+      fishingSessions.delete(userId);
+      console.error('resolveCatch error:', err.message);
+    }
   });
 
   collector.on('end', async () => {
     if (!collected) {
-      await resolveCatch({ buttonInteraction: null, message: bitMessage, store, userId, reactionMs: REEL_WINDOW_MS + 1 });
+      try {
+        await resolveCatch({ buttonInteraction: null, message: bitMessage, store, userId, reactionMs: REEL_WINDOW_MS + 1, fishingSessions });
+      } catch (err) {
+        fishingSessions.delete(userId);
+        console.error('resolveCatch timeout error:', err.message);
+      }
     }
   });
 }
 
-async function resolveCatch({ buttonInteraction, message, store, userId, reactionMs }) {
+async function resolveCatch({ buttonInteraction, message, store, userId, reactionMs, fishingSessions }) {
+  fishingSessions.delete(userId);
+
   const user = store.getUser(userId);
   const hasGoldenLure = user.ownedItems.includes('golden_lure');
   const hasBetterBait = user.ownedItems.includes('better_bait');
+  const hasQualityRod = user.ownedItems.includes('quality_rod');
 
-  let points = fishingReward(reactionMs, { hasGoldenLure });
+  let points = fishingReward(reactionMs, { hasGoldenLure, hasQualityRod });
   let bigCatch = false;
   if (points > 0 && rollBigCatch({ hasBetterBait, hasGoldenLure })) {
     points += BIG_CATCH_BONUS;

@@ -35,6 +35,24 @@ function gridButtons(customIdPrefix) {
   return rows;
 }
 
+function resolveFirstTurn(challengerId, opponentId, challengerItems, opponentItems) {
+  const challengerHasCompass = challengerItems.includes('lucky_compass');
+  const opponentHasCompass = opponentItems.includes('lucky_compass');
+  if (challengerHasCompass && !opponentHasCompass) {
+    return Math.random() < 0.7 ? challengerId : opponentId;
+  }
+  if (opponentHasCompass && !challengerHasCompass) {
+    return Math.random() < 0.7 ? opponentId : challengerId;
+  }
+  return Math.random() < 0.5 ? challengerId : opponentId;
+}
+
+function getRandomShipCell(fleet) {
+  const allCells = fleet.ships.flatMap((ship) => ship.cells);
+  if (allCells.length === 0) return null;
+  return allCells[Math.floor(Math.random() * allCells.length)];
+}
+
 async function execute(interaction, context) {
   const challenger = interaction.user;
   const opponent = interaction.options.getUser('opponent');
@@ -44,8 +62,21 @@ async function execute(interaction, context) {
     return;
   }
 
+  if (context.matches.has(interaction.channelId)) {
+    await interaction.reply({ content: 'A Battleship match is already running in this channel!', ephemeral: true });
+    return;
+  }
+
   if (!canDuel(context.store.getUser(challenger.id))) {
     await interaction.reply({ content: "You've already dueled today. Try again tomorrow!", ephemeral: true });
+    return;
+  }
+
+  if (!canDuel(context.store.getUser(opponent.id))) {
+    await interaction.reply({
+      content: `${opponent.username} has already dueled today and can't be challenged again until tomorrow.`,
+      ephemeral: true,
+    });
     return;
   }
 
@@ -72,7 +103,15 @@ async function execute(interaction, context) {
       return;
     }
     await buttonInteraction.update({ content: `${opponent} accepted! Check your DMs to place your ships.`, components: [] });
-    await startMatch({ channelId: interaction.channelId, challenger, opponent, context });
+    try {
+      await startMatch({ channelId: interaction.channelId, challenger, opponent, context });
+    } catch (err) {
+      console.error('startMatch failed:', err.message);
+      context.matches.delete(interaction.channelId);
+      await interaction.followUp({
+        content: 'Could not start the match — make sure both players have DMs open and try again.',
+      });
+    }
   });
 
   collector.on('end', async (collected) => {
@@ -83,7 +122,24 @@ async function execute(interaction, context) {
 }
 
 async function startMatch({ channelId, challenger, opponent, context }) {
-  context.matches.set(channelId, createMatch(challenger.id, opponent.id));
+  const challengerUser = context.store.getUser(challenger.id);
+  const opponentUser = context.store.getUser(opponent.id);
+
+  const firstTurn = resolveFirstTurn(
+    challenger.id,
+    opponent.id,
+    challengerUser.ownedItems,
+    opponentUser.ownedItems
+  );
+
+  const match = createMatch(challenger.id, opponent.id, {
+    firstTurn,
+    items: {
+      [challenger.id]: challengerUser.ownedItems,
+      [opponent.id]: opponentUser.ownedItems,
+    },
+  });
+  context.matches.set(channelId, match);
 
   await Promise.all(
     [challenger, opponent].map((player) =>
@@ -102,6 +158,11 @@ async function handlePlacement(buttonInteraction, context) {
   const match = context.matches.get(channelId);
   if (!match) {
     await buttonInteraction.reply({ content: 'This match is no longer active.', ephemeral: true });
+    return;
+  }
+
+  if (buttonInteraction.user.id !== userId) {
+    await buttonInteraction.reply({ content: "Those aren't your ships!", ephemeral: true });
     return;
   }
 
@@ -130,8 +191,27 @@ async function handlePlacement(buttonInteraction, context) {
 
   if (bothPlayersReady(updated)) {
     const channel = await buttonInteraction.client.channels.fetch(channelId);
-    await announceTurn(channel, channelId, updated);
+    await announceMatchStart(channel, channelId, updated);
   }
+}
+
+async function announceMatchStart(channel, channelId, match) {
+  const revealLines = match.players
+    .filter((playerId) => (match.items[playerId] || []).includes('admirals_spyglass'))
+    .map((playerId) => {
+      const opponentId = match.players.find((id) => id !== playerId);
+      const cell = getRandomShipCell(match.fleets[opponentId]);
+      return cell
+        ? `🔭 <@${playerId}>'s Admiral's Spyglass reveals the enemy has a ship at **${COLUMN_LETTERS[cell.col]}${cell.row + 1}**!`
+        : null;
+    })
+    .filter(Boolean);
+
+  if (revealLines.length > 0) {
+    await channel.send(revealLines.join('\n'));
+  }
+
+  await announceTurn(channel, channelId, match);
 }
 
 async function announceTurn(channel, channelId, match) {
@@ -144,13 +224,26 @@ async function announceTurn(channel, channelId, match) {
 async function handleShot(buttonInteraction, context) {
   const [, channelId, shooterId, rowStr, colStr] = buttonInteraction.customId.split('_');
 
-  if (buttonInteraction.user.id !== shooterId) {
+  const match = context.matches.get(channelId);
+  if (!match) {
+    await buttonInteraction.reply({ content: 'This match is no longer active.', ephemeral: true });
+    return;
+  }
+
+  if (buttonInteraction.user.id !== shooterId || match.turn !== shooterId) {
     await buttonInteraction.reply({ content: "It's not your turn.", ephemeral: true });
     return;
   }
 
-  const match = context.matches.get(channelId);
-  const { match: updated, hit, sunk, targetId } = takeShot(match, shooterId, Number(rowStr), Number(colStr));
+  const { match: updated, hit, sunk, targetId, alreadyFired } = takeShot(
+    match, shooterId, Number(rowStr), Number(colStr)
+  );
+
+  if (alreadyFired) {
+    await buttonInteraction.reply({ content: "You've already fired at that cell — pick a different one!", ephemeral: true });
+    return;
+  }
+
   context.matches.set(channelId, updated);
 
   await buttonInteraction.update({

@@ -16,6 +16,7 @@ async function execute(interaction, { store }) {
 
   const lines = user.ownedItems.map((itemId) => {
     const item = findItem(itemId);
+    if (!item) return `❓ Unknown item (${itemId})`;
     return `${item.emoji} **${item.name}** — ${item.description}`;
   });
 

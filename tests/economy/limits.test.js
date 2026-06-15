@@ -4,13 +4,13 @@ describe('canDuel', () => {
   test('allows a duel when the user has never dueled', () => {
     expect(canDuel({ lastDuelAt: null })).toBe(true);
   });
-  test('blocks a duel within 24 hours of the last one', () => {
+  test('blocks a duel if already dueled today (same UTC date)', () => {
     const now = new Date('2026-06-08T12:00:00Z');
     expect(canDuel({ lastDuelAt: '2026-06-08T01:00:00Z' }, now)).toBe(false);
   });
-  test('allows a duel 24 hours after the last one', () => {
-    const now = new Date('2026-06-09T01:00:00Z');
-    expect(canDuel({ lastDuelAt: '2026-06-08T01:00:00Z' }, now)).toBe(true);
+  test('allows a duel after midnight UTC the next day', () => {
+    const now = new Date('2026-06-09T00:00:01Z');
+    expect(canDuel({ lastDuelAt: '2026-06-08T23:59:00Z' }, now)).toBe(true);
   });
 });
 

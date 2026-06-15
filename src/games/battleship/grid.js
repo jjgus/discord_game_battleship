@@ -27,25 +27,36 @@ function canPlaceShip(existingShips, cells) {
 
 function createFleet() { return { ships: [] }; }
 
-function addShip(fleet, { startRow, startCol, length, orientation }) {
+function addShip(fleet, { startRow, startCol, length, orientation, armor = 0 }) {
   const cells = buildShipCells(startRow, startCol, length, orientation);
   if (!canPlaceShip(fleet.ships, cells)) throw new Error('Cannot place ship there');
-  return { ships: [...fleet.ships, { cells, hits: [] }] };
+  return { ships: [...fleet.ships, { cells, hits: [], armorLeft: armor }] };
 }
 
 function fireAt(fleet, row, col) {
   let hit = false;
+  let armorPierced = false;
+  const key = cellKey(row, col);
   const ships = fleet.ships.map((ship) => {
     const matchesTarget = ship.cells.some((cell) => cell.row === row && cell.col === col);
-    if (!matchesTarget || ship.hits.includes(cellKey(row, col))) return ship;
-    hit = true;
-    return { ...ship, hits: [...ship.hits, cellKey(row, col)] };
+    if (!matchesTarget) return ship;
+    if (!ship.hits.includes(key)) {
+      hit = true;
+      return { ...ship, hits: [...ship.hits, key] };
+    }
+    const allCellsHit = ship.hits.length >= ship.cells.length;
+    if (allCellsHit && ship.armorLeft > 0) {
+      hit = true;
+      armorPierced = true;
+      return { ...ship, armorLeft: ship.armorLeft - 1 };
+    }
+    return ship;
   });
-  return { fleet: { ships }, hit };
+  return { fleet: { ships }, hit, armorPierced };
 }
 
 function isFleetSunk(fleet) {
-  return fleet.ships.every((ship) => ship.cells.length === ship.hits.length);
+  return fleet.ships.every((ship) => ship.hits.length >= ship.cells.length && ship.armorLeft <= 0);
 }
 
 module.exports = { GRID_SIZE, createFleet, addShip, fireAt, isFleetSunk, buildShipCells, canPlaceShip, cellKey };

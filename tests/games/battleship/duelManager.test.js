@@ -20,6 +20,19 @@ describe('placeNextShip', () => {
     match = placeNextShip(match, 'alice', { startRow: 2, startCol: 0, orientation: 'horizontal' });
     expect(match.placementsComplete.alice).toBe(true);
   });
+
+  test('gives the first ship armor when the player owns reinforced_hull', () => {
+    const match = createMatch('alice', 'bob', { items: { alice: ['reinforced_hull'] } });
+    const updated = placeNextShip(match, 'alice', { startRow: 0, startCol: 0, orientation: 'horizontal' });
+    expect(updated.fleets.alice.ships[0].armorLeft).toBe(1);
+  });
+
+  test('does not give armor to subsequent ships', () => {
+    let match = createMatch('alice', 'bob', { items: { alice: ['reinforced_hull'] } });
+    match = placeNextShip(match, 'alice', { startRow: 0, startCol: 0, orientation: 'horizontal' });
+    match = placeNextShip(match, 'alice', { startRow: 1, startCol: 0, orientation: 'horizontal' });
+    expect(match.fleets.alice.ships[1].armorLeft).toBe(0);
+  });
 });
 
 describe('bothPlayersReady', () => {
@@ -60,9 +73,33 @@ describe('takeShot', () => {
     ({ match } = takeShot(match, 'alice', 0, 0));
     ({ match } = takeShot(match, 'bob', 4, 3));
     ({ match } = takeShot(match, 'alice', 0, 1));
-    ({ match } = takeShot(match, 'bob', 4, 3));
+    ({ match } = takeShot(match, 'bob', 4, 4));
     const { match: final, sunk } = takeShot(match, 'alice', 0, 2);
     expect(sunk).toBe(true);
     expect(final.turn).toBeNull();
+  });
+
+  test('returns alreadyFired when the same cell is fired at twice', () => {
+    let match = readyMatch();
+    ({ match } = takeShot(match, 'alice', 4, 4));
+    ({ match } = takeShot(match, 'bob', 4, 3));
+    const { alreadyFired, match: unchanged } = takeShot(match, 'alice', 4, 4);
+    expect(alreadyFired).toBe(true);
+    expect(unchanged.turn).toBe('alice');
+  });
+
+  test('allows armor piercing after all ship cells are hit', () => {
+    const baseMatch = createMatch('alice', 'bob', { items: { alice: ['reinforced_hull'] } });
+    let match = placeNextShip(baseMatch, 'alice', { startRow: 4, startCol: 0, orientation: 'horizontal' });
+    match = placeNextShip(match, 'bob', { startRow: 0, startCol: 0, orientation: 'horizontal' });
+    ({ match } = takeShot(match, 'alice', 0, 0));
+    ({ match } = takeShot(match, 'bob', 4, 3));
+    ({ match } = takeShot(match, 'alice', 0, 1));
+    ({ match } = takeShot(match, 'bob', 4, 4));
+    ({ match } = takeShot(match, 'alice', 0, 2));
+    expect(takeShot(match, 'bob', 4, 0).sunk).toBe(false);
+    const { hit, sunk } = takeShot(match, 'bob', 4, 0);
+    expect(hit).toBe(true);
+    expect(sunk).toBe(false);
   });
 });

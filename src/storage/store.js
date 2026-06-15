@@ -6,10 +6,8 @@ function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
   let cache = { users: {} };
 
   async function load() {
-    cache = await jsonbinClient.fetchBin({ baseUrl, binId, apiKey });
-    if (!cache.users) {
-      cache.users = {};
-    }
+    const data = await jsonbinClient.fetchBin({ baseUrl, binId, apiKey });
+    cache = { users: {}, ...data };
     return cache;
   }
 
@@ -27,7 +25,7 @@ function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
   }
 
   function getAllUsers() {
-    return cache.users;
+    return { ...cache.users };
   }
 
   async function save() {

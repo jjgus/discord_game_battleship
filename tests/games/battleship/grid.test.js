@@ -6,6 +6,14 @@ describe('addShip', () => {
     expect(fleet.ships).toHaveLength(1);
     expect(fleet.ships[0].cells).toEqual([{ row: 0, col: 0 }, { row: 0, col: 1 }]);
   });
+  test('stores armor on the ship when specified', () => {
+    const fleet = addShip(createFleet(), { startRow: 0, startCol: 0, length: 2, orientation: 'horizontal', armor: 1 });
+    expect(fleet.ships[0].armorLeft).toBe(1);
+  });
+  test('defaults armorLeft to 0 when armor is not specified', () => {
+    const fleet = addShip(createFleet(), { startRow: 0, startCol: 0, length: 2, orientation: 'horizontal' });
+    expect(fleet.ships[0].armorLeft).toBe(0);
+  });
   test('rejects a ship that would go out of bounds', () => {
     expect(() =>
       addShip(createFleet(), { startRow: 0, startCol: 4, length: 2, orientation: 'horizontal' })
@@ -30,6 +38,15 @@ describe('fireAt', () => {
     const fleet = addShip(createFleet(), { startRow: 0, startCol: 0, length: 2, orientation: 'horizontal' });
     expect(fireAt(fleet, 4, 4).hit).toBe(false);
   });
+  test('depletes armor when all cells are hit and armor remains', () => {
+    const fleet = addShip(createFleet(), { startRow: 0, startCol: 0, length: 2, orientation: 'horizontal', armor: 1 });
+    const { fleet: after1 } = fireAt(fleet, 0, 0);
+    const { fleet: after2 } = fireAt(after1, 0, 1);
+    const { fleet: after3, hit, armorPierced } = fireAt(after2, 0, 0);
+    expect(hit).toBe(true);
+    expect(armorPierced).toBe(true);
+    expect(after3.ships[0].armorLeft).toBe(0);
+  });
 });
 
 describe('isFleetSunk', () => {
@@ -43,5 +60,13 @@ describe('isFleetSunk', () => {
     const { fleet: afterFirst } = fireAt(fleet, 0, 0);
     const { fleet: afterSecond } = fireAt(afterFirst, 0, 1);
     expect(isFleetSunk(afterSecond)).toBe(true);
+  });
+  test('armored ship survives all cells being hit until armor is depleted', () => {
+    const fleet = addShip(createFleet(), { startRow: 0, startCol: 0, length: 2, orientation: 'horizontal', armor: 1 });
+    const { fleet: after1 } = fireAt(fleet, 0, 0);
+    const { fleet: after2 } = fireAt(after1, 0, 1);
+    expect(isFleetSunk(after2)).toBe(false);
+    const { fleet: after3 } = fireAt(after2, 0, 0);
+    expect(isFleetSunk(after3)).toBe(true);
   });
 });

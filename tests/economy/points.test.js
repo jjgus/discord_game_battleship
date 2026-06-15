@@ -25,4 +25,10 @@ describe('fishingReward', () => {
   test('Golden Lure guarantees the minimum reward even on a miss', () => {
     expect(fishingReward(5000, { hasGoldenLure: true })).toBe(10);
   });
+  test('Quality Rod grants fast-tier reward for reactions up to 1.5 seconds', () => {
+    expect(fishingReward(1300, { hasQualityRod: true })).toBe(30);
+  });
+  test('Quality Rod does not affect reactions slower than 1.5 seconds', () => {
+    expect(fishingReward(1600, { hasQualityRod: true })).toBe(20);
+  });
 });
