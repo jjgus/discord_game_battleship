@@ -96,6 +96,16 @@ function startGameServer({ port = 3000, store, discordClient } = {}) {
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
 
+  // Ping every 25s so Railway's proxy never drops idle WebSocket connections
+  const heartbeat = setInterval(() => {
+    wss.clients.forEach((client) => {
+      if (!client.isAlive) { client.terminate(); return; }
+      client.isAlive = false;
+      client.ping();
+    });
+  }, 25000);
+  wss.on('close', () => clearInterval(heartbeat));
+
   httpServer.on('upgrade', (req, socket, head) => {
     if (req.url.startsWith('/ws')) {
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
@@ -105,6 +115,9 @@ function startGameServer({ port = 3000, store, discordClient } = {}) {
   });
 
   wss.on('connection', (ws, req) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
     const url = new URL(req.url, 'http://localhost');
     const matchId = url.searchParams.get('matchId');
     const playerId = url.searchParams.get('p');

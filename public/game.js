@@ -1,5 +1,4 @@
 const GRID_SIZE = 5;
-const COL_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -38,9 +37,18 @@ function boot() {
   const ws = new WebSocket(`${proto}//${location.host}/ws?matchId=${encodeURIComponent(state.matchId)}&p=${encodeURIComponent(state.playerId)}`);
   state.ws = ws;
 
-  ws.onopen = () => showStatus('Connected');
+  ws.onopen = () => {
+    showStatus('Connected');
+    // Give immediate feedback — server message will refine this shortly
+    document.querySelector('#phase-connecting p').textContent = 'Connected — waiting for game server…';
+  };
   ws.onclose = () => {
-    if (state.phase !== 'done') showStatus('⚠️ Disconnected — refresh to reconnect');
+    if (state.phase !== 'done') {
+      showStatus('⚠️ Disconnected — refresh to reconnect');
+      showPhase('connecting');
+      document.querySelector('#phase-connecting p').textContent = '⚠️ Connection lost — please refresh the page.';
+      document.querySelector('#phase-connecting .spinner').style.display = 'none';
+    }
   };
   ws.onerror = () => showStatus('Connection error');
   ws.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
@@ -52,7 +60,7 @@ function handleServerMessage(msg) {
   switch (msg.type) {
     case 'waiting':
       showPhase('waiting');
-      document.getElementById('waiting-msg').textContent = msg.message;
+      document.getElementById('waiting-msg').textContent = msg.message + ' Make sure they opened their DM link.';
       break;
 
     case 'welcome':
@@ -219,7 +227,6 @@ function renderPlacementGrid() {
         if (previewValid) cell.classList.add('clickable');
       } else {
         cell.classList.add('clickable');
-        cell.textContent = `${COL_LETTERS[col]}${row + 1}`;
       }
 
       cell.addEventListener('mouseenter', () => {
@@ -319,10 +326,7 @@ function renderEnemyGrid() {
         }
         if (state.myTurn) {
           cell.classList.add('clickable');
-          cell.textContent = `${COL_LETTERS[col]}${row + 1}`;
           cell.addEventListener('click', () => fireShot(row, col));
-        } else {
-          cell.textContent = `${COL_LETTERS[col]}${row + 1}`;
         }
       }
 
@@ -421,7 +425,7 @@ function showSpyglassBanner(cell) {
   const banner = document.getElementById('spyglass-banner');
   if (!banner) return;
   banner.hidden = false;
-  banner.textContent = `🔭 Admiral's Spyglass: Enemy ship spotted at ${COL_LETTERS[cell.col]}${cell.row + 1}!`;
+  banner.textContent = `🔭 Admiral's Spyglass revealed an enemy ship position!`;
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────

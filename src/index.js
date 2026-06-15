@@ -45,6 +45,8 @@ async function main() {
   });
 
   const port = parseInt(process.env.PORT || '3000', 10);
+  console.log(`[startup] PORT env = ${process.env.PORT ?? '(not set, defaulting to 3000)'}, binding on ${port}`);
+
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
 
   // Bind the port BEFORE store.load() so Railway's health check never gets connection refused
