@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚓ Battleship</title>
+  <link rel="stylesheet" href="/game.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>⚓ Battleship</h1>
+      <div id="status-bar"></div>
+    </header>
+
+    <main>
+      <!-- CONNECTING -->
+      <section id="phase-connecting">
+        <div class="spinner"></div>
+        <p>Connecting to game server…</p>
+      </section>
+
+      <!-- WAITING FOR OPPONENT -->
+      <section id="phase-waiting" hidden>
+        <div class="spinner"></div>
+        <p id="waiting-msg">Waiting for opponent to connect…</p>
+      </section>
+
+      <!-- PLACEMENT -->
+      <section id="phase-placement" hidden>
+        <div class="placement-header">
+          <div id="placement-info">Place ship 1 of 3</div>
+          <button id="btn-rotate" class="btn-secondary">🔄 Rotate (R)</button>
+        </div>
+        <div class="grid-wrapper">
+          <div class="grid-labels-col">
+            <div class="grid-label"></div>
+            <div class="grid-label">1</div>
+            <div class="grid-label">2</div>
+            <div class="grid-label">3</div>
+            <div class="grid-label">4</div>
+            <div class="grid-label">5</div>
+          </div>
+          <div>
+            <div class="grid-labels-row">
+              <div class="grid-label">A</div>
+              <div class="grid-label">B</div>
+              <div class="grid-label">C</div>
+              <div class="grid-label">D</div>
+              <div class="grid-label">E</div>
+            </div>
+            <div id="placement-grid" class="grid"></div>
+          </div>
+        </div>
+        <p class="hint">Ships are placed in the selected direction from the cell you click.</p>
+      </section>
+
+      <!-- WAITING FOR OPPONENT TO PLACE -->
+      <section id="phase-waiting-opponent" hidden>
+        <div class="spinner"></div>
+        <p>Fleet placed! Waiting for opponent…</p>
+        <div id="preview-fleet-wrapper">
+          <h3>Your Fleet</h3>
+          <div class="grid-wrapper">
+            <div class="grid-labels-col">
+              <div class="grid-label"></div>
+              <div class="grid-label">1</div>
+              <div class="grid-label">2</div>
+              <div class="grid-label">3</div>
+              <div class="grid-label">4</div>
+              <div class="grid-label">5</div>
+            </div>
+            <div>
+              <div class="grid-labels-row">
+                <div class="grid-label">A</div>
+                <div class="grid-label">B</div>
+                <div class="grid-label">C</div>
+                <div class="grid-label">D</div>
+                <div class="grid-label">E</div>
+              </div>
+              <div id="preview-fleet-grid" class="grid"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BATTLE -->
+      <section id="phase-battle" hidden>
+        <div id="turn-banner"></div>
+        <div class="battle-area">
+          <div class="board">
+            <h3>Your Fleet</h3>
+            <div class="grid-wrapper">
+              <div class="grid-labels-col">
+                <div class="grid-label"></div>
+                <div class="grid-label">1</div>
+                <div class="grid-label">2</div>
+                <div class="grid-label">3</div>
+                <div class="grid-label">4</div>
+                <div class="grid-label">5</div>
+              </div>
+              <div>
+                <div class="grid-labels-row">
+                  <div class="grid-label">A</div>
+                  <div class="grid-label">B</div>
+                  <div class="grid-label">C</div>
+                  <div class="grid-label">D</div>
+                  <div class="grid-label">E</div>
+                </div>
+                <div id="my-grid" class="grid"></div>
+              </div>
+            </div>
+            <div id="my-fleet-status" class="fleet-status"></div>
+          </div>
+          <div class="board">
+            <h3 id="enemy-label">Enemy Waters</h3>
+            <div class="grid-wrapper">
+              <div class="grid-labels-col">
+                <div class="grid-label"></div>
+                <div class="grid-label">1</div>
+                <div class="grid-label">2</div>
+                <div class="grid-label">3</div>
+                <div class="grid-label">4</div>
+                <div class="grid-label">5</div>
+              </div>
+              <div>
+                <div class="grid-labels-row">
+                  <div class="grid-label">A</div>
+                  <div class="grid-label">B</div>
+                  <div class="grid-label">C</div>
+                  <div class="grid-label">D</div>
+                  <div class="grid-label">E</div>
+                </div>
+                <div id="enemy-grid" class="grid"></div>
+              </div>
+            </div>
+            <div id="enemy-fleet-status" class="fleet-status"></div>
+          </div>
+        </div>
+        <div id="spyglass-banner" hidden></div>
+      </section>
+
+      <!-- DONE -->
+      <section id="phase-done" hidden>
+        <div id="result-box">
+          <div id="result-icon"></div>
+          <div id="result-title"></div>
+          <div id="result-sub"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/game.js"></script>
+</body>
+</html>

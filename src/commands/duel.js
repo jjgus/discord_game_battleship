@@ -8,10 +8,11 @@ const {
   takeShot,
   SHIP_LENGTHS,
 } = require('../games/battleship/duelManager');
-const { GRID_SIZE } = require('../games/battleship/grid');
+const { GRID_SIZE, cellKey } = require('../games/battleship/grid');
 const { getOpponentForToday, getTodaysMatchup, recordResult } = require('../tournament/scheduler');
+const { isMatchActiveInChannel } = require('../server/gameServer');
 
-const CHALLENGE_TIMEOUT_MS = 60 * 1000;
+const CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000;
 const COLUMN_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 const data = new SlashCommandBuilder()
@@ -19,21 +20,85 @@ const data = new SlashCommandBuilder()
   .setDescription('Challenge another user to a Battleship match')
   .addUserOption((option) => option.setName('opponent').setDescription('Who to challenge').setRequired(true));
 
-function gridButtons(customIdPrefix) {
+function placementGridButtons(customIdPrefix, fleet) {
+  const shipCells = new Set();
+  fleet.ships.forEach((ship) => {
+    ship.cells.forEach(({ row, col }) => shipCells.add(cellKey(row, col)));
+  });
+
   const rows = [];
   for (let row = 0; row < GRID_SIZE; row += 1) {
     const actionRow = new ActionRowBuilder();
     for (let col = 0; col < GRID_SIZE; col += 1) {
+      const isShip = shipCells.has(cellKey(row, col));
       actionRow.addComponents(
         new ButtonBuilder()
           .setCustomId(`${customIdPrefix}_${row}_${col}`)
-          .setLabel(`${COLUMN_LETTERS[col]}${row + 1}`)
-          .setStyle(ButtonStyle.Secondary)
+          .setLabel(isShip ? '🚢' : `${COLUMN_LETTERS[col]}${row + 1}`)
+          .setStyle(isShip ? ButtonStyle.Primary : ButtonStyle.Secondary)
+          .setDisabled(isShip)
       );
     }
     rows.push(actionRow);
   }
   return rows;
+}
+
+function battleGridButtons(customIdPrefix, targetFleet, shotsFromShooter) {
+  const hitCells = new Set();
+  const armorPierceCells = new Set();
+
+  targetFleet.ships.forEach((ship) => {
+    ship.hits.forEach((key) => hitCells.add(key));
+    if (ship.hits.length >= ship.cells.length && ship.armorLeft > 0) {
+      ship.cells.forEach(({ row, col }) => armorPierceCells.add(cellKey(row, col)));
+    }
+  });
+
+  const missedCells = new Set(shotsFromShooter.filter((key) => !hitCells.has(key)));
+
+  const rows = [];
+  for (let row = 0; row < GRID_SIZE; row += 1) {
+    const actionRow = new ActionRowBuilder();
+    for (let col = 0; col < GRID_SIZE; col += 1) {
+      const key = cellKey(row, col);
+      const isArmorTarget = armorPierceCells.has(key);
+      const isHit = hitCells.has(key);
+      const isMiss = missedCells.has(key);
+
+      let label, style, disabled;
+      if (isArmorTarget) {
+        label = '🛡️'; style = ButtonStyle.Danger; disabled = false;
+      } else if (isHit) {
+        label = '💥'; style = ButtonStyle.Danger; disabled = true;
+      } else if (isMiss) {
+        label = '·'; style = ButtonStyle.Secondary; disabled = true;
+      } else {
+        label = `${COLUMN_LETTERS[col]}${row + 1}`; style = ButtonStyle.Secondary; disabled = false;
+      }
+
+      actionRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${customIdPrefix}_${row}_${col}`)
+          .setLabel(label)
+          .setStyle(style)
+          .setDisabled(disabled)
+      );
+    }
+    rows.push(actionRow);
+  }
+  return rows;
+}
+
+function fleetStatusText(fleet) {
+  return fleet.ships.map((ship) => {
+    const isSunk = ship.hits.length >= ship.cells.length && ship.armorLeft <= 0;
+    if (isSunk) return '☠️';
+    const hitBlocks = '🟥'.repeat(ship.hits.length);
+    const intactBlocks = '⬜'.repeat(ship.cells.length - ship.hits.length);
+    const armorTag = ship.armorLeft > 0 ? '🛡️' : '';
+    return hitBlocks + intactBlocks + armorTag;
+  }).join('  ');
 }
 
 function resolveFirstTurn(challengerId, opponentId, challengerItems, opponentItems) {
@@ -63,7 +128,7 @@ async function execute(interaction, context) {
     return;
   }
 
-  if (context.matches.has(interaction.channelId)) {
+  if (isMatchActiveInChannel(interaction.channelId)) {
     await interaction.reply({ content: 'A Battleship match is already running in this channel!', ephemeral: true });
     return;
   }
@@ -135,7 +200,6 @@ async function execute(interaction, context) {
       await startMatch({ channelId: interaction.channelId, challenger, opponent, context });
     } catch (err) {
       console.error('startMatch failed:', err.message);
-      context.matches.delete(interaction.channelId);
       await interaction.followUp({
         content: 'Could not start the match — make sure both players have DMs open and try again.',
       });
@@ -160,25 +224,25 @@ async function startMatch({ channelId, challenger, opponent, context }) {
     opponentUser.ownedItems
   );
 
-  const match = createMatch(challenger.id, opponent.id, {
-    firstTurn,
+  const matchId = context.createWebMatch({
+    channelId,
+    challengerId: challenger.id,
+    challengerName: challenger.username,
+    opponentId: opponent.id,
+    opponentName: opponent.username,
     items: {
       [challenger.id]: challengerUser.ownedItems,
       [opponent.id]: opponentUser.ownedItems,
     },
+    firstTurn,
   });
-  context.matches.set(channelId, match);
 
-  await Promise.all(
-    [challenger, opponent].map((player) =>
-      player.send({
-        content:
-          `Place your fleet (${SHIP_LENGTHS.join(', ')}-cell ships)! ` +
-          `Tap a starting cell for ship #1 (${SHIP_LENGTHS[0]} cells, placed left-to-right).`,
-        components: gridButtons(`place_${channelId}_${player.id}`),
-      })
-    )
-  );
+  const makeUrl = (userId) => `${context.webUrl}/game/${matchId}?p=${userId}`;
+
+  await Promise.all([
+    challenger.send(`⚓ **Your Battleship game is ready!**\n[Click here to open the game](${makeUrl(challenger.id)})`),
+    opponent.send(`⚓ **Your Battleship game is ready!**\n[Click here to open the game](${makeUrl(opponent.id)})`),
+  ]);
 }
 
 async function handlePlacement(buttonInteraction, context) {
@@ -213,7 +277,7 @@ async function handlePlacement(buttonInteraction, context) {
   } else {
     await buttonInteraction.update({
       content: `Ship placed! Now place ship #${nextShipIndex + 1} (${SHIP_LENGTHS[nextShipIndex]} cells).`,
-      components: gridButtons(`place_${channelId}_${userId}`),
+      components: placementGridButtons(`place_${channelId}_${userId}`, updated.fleets[userId]),
     });
   }
 
@@ -243,9 +307,13 @@ async function announceMatchStart(channel, channelId, match) {
 }
 
 async function announceTurn(channel, channelId, match) {
+  const shooterId = match.turn;
+  const targetId = match.players.find((id) => id !== shooterId);
+  const shotsFromShooter = match.shots[shooterId] || [];
+  const ownFleetStatus = fleetStatusText(match.fleets[shooterId]);
   await channel.send({
-    content: `<@${match.turn}>, it's your turn! Pick a cell to fire at.`,
-    components: gridButtons(`shoot_${channelId}_${match.turn}`),
+    content: `<@${shooterId}>, it's your turn! Pick a cell to fire at.\nYour fleet: ${ownFleetStatus}`,
+    components: battleGridButtons(`shoot_${channelId}_${shooterId}`, match.fleets[targetId], shotsFromShooter),
   });
 }
 

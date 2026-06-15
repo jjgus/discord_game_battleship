@@ -37,7 +37,7 @@ function generateSchedule(participants, startDateStr) {
 }
 
 function getTodaysEntry(tournament, now = new Date()) {
-  if (!tournament || !tournament.active) return null;
+  if (!tournament || !tournament.active || !Array.isArray(tournament.schedule)) return null;
   const today = now.toISOString().slice(0, 10);
   return tournament.schedule.find((d) => d.date === today) || null;
 }
@@ -55,7 +55,7 @@ function getOpponentForToday(tournament, userId, now = new Date()) {
 }
 
 function recordResult(tournament, winnerId, loserId, dateStr) {
-  const schedule = tournament.schedule.map((day) => {
+  const schedule = (tournament.schedule || []).map((day) => {
     if (day.date !== dateStr) return day;
     const matchups = day.matchups.map((m) => {
       const isThisMatch =

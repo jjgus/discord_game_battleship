@@ -74,7 +74,7 @@ On any successful reel-in (10 pts or more), there is a chance to trigger a **Big
 ### How to play
 
 1. Type `/duel @username` to challenge someone
-2. The opponent has **60 seconds** to Accept or Decline
+2. The opponent has **5 minutes** to Accept or Decline
 3. If accepted, both players receive a **DM with a 5×5 grid** to place their ships
 4. Tap a starting cell for each ship — ships are placed **left-to-right** from the cell you pick
 5. Once both fleets are placed, the battle moves to the **server channel** so everyone can watch

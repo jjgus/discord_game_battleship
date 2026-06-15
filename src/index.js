@@ -11,6 +11,7 @@ const fish = require('./commands/fish');
 const duel = require('./commands/duel');
 const tournament = require('./commands/tournament');
 const { getTodaysEntry } = require('./tournament/scheduler');
+const { startGameServer, createWebMatch } = require('./server/gameServer');
 
 const JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3';
 const DAILY_CHECK_INTERVAL_MS = 60 * 1000;
@@ -44,31 +45,47 @@ async function main() {
   });
   await store.load();
 
-  const context = { store, matches: new Map(), fishingSessions: new Set() };
+  const webUrl = process.env.WEB_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const context = {
+    store,
+    fishingSessions: new Set(),
+    webUrl,
+    createWebMatch: (opts) => createWebMatch({ ...opts }),
+  };
 
   const commands = new Collection();
   [balance, leaderboard, shop, inventory, fish, duel, tournament].forEach((command) =>
     commands.set(command.data.name, command)
   );
 
+  const port = parseInt(process.env.PORT || '3000', 10);
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
 
-  client.on('interactionCreate', async (interaction) => {
-    if (interaction.isChatInputCommand()) {
-      const command = commands.get(interaction.commandName);
-      if (command) {
-        await command.execute(interaction, context);
-      }
-      return;
-    }
+  // Start the web server immediately — discordClient ref is live by the time any game ends
+  startGameServer({ port, store, discordClient: client });
 
-    if (interaction.isButton()) {
-      if (interaction.customId.startsWith('shop_buy_')) {
-        await shop.handleButton(interaction, context);
-      } else if (interaction.customId.startsWith('place_')) {
-        await duel.handlePlacement(interaction, context);
-      } else if (interaction.customId.startsWith('shoot_')) {
-        await duel.handleShot(interaction, context);
+  client.on('interactionCreate', async (interaction) => {
+    try {
+      if (interaction.isChatInputCommand()) {
+        const command = commands.get(interaction.commandName);
+        if (command) {
+          await command.execute(interaction, context);
+        }
+        return;
+      }
+
+      if (interaction.isButton()) {
+        if (interaction.customId.startsWith('shop_buy_')) {
+          await shop.handleButton(interaction, context);
+        }
+      }
+    } catch (err) {
+      console.error('Interaction error:', err.message);
+      const reply = { content: 'Something went wrong — please try again.', ephemeral: true };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply).catch(() => {});
+      } else {
+        await interaction.reply(reply).catch(() => {});
       }
     }
   });
