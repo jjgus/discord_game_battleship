@@ -17,13 +17,7 @@
       <!-- CONNECTING -->
       <section id="phase-connecting">
         <div class="spinner"></div>
-        <p>Connecting to game server…</p>
-      </section>
-
-      <!-- WAITING FOR OPPONENT -->
-      <section id="phase-waiting" hidden>
-        <div class="spinner"></div>
-        <p id="waiting-msg">Waiting for opponent to connect…</p>
+        <p>Connecting…</p>
       </section>
 
       <!-- PLACEMENT -->
@@ -47,35 +41,15 @@
         </div>
       </section>
 
-      <!-- BATTLE -->
-      <section id="phase-battle" hidden>
-        <div id="turn-banner"></div>
-        <div class="battle-area">
-          <div class="board">
-            <h3>Your Fleet</h3>
-            <div id="my-grid" class="grid"></div>
-            <div id="my-fleet-status" class="fleet-status"></div>
-          </div>
-          <div class="board">
-            <h3 id="enemy-label">Enemy Waters</h3>
-            <div id="enemy-grid" class="grid"></div>
-            <div id="enemy-fleet-status" class="fleet-status"></div>
-          </div>
-        </div>
-        <div id="spyglass-banner" hidden></div>
-      </section>
-
-      <!-- DONE -->
-      <section id="phase-done" hidden>
-        <div id="result-box">
-          <div id="result-icon"></div>
-          <div id="result-title"></div>
-          <div id="result-sub"></div>
-        </div>
+      <!-- CANCELLED during placement -->
+      <section id="phase-cancelled" hidden>
+        <p id="cancelled-msg" style="font-size:1.1rem;color:var(--text-dim);text-align:center;"></p>
       </section>
     </main>
   </div>
 
+  <script>window.__GAME_DATA__ = {}</script>
+  <script src="/grid.js"></script>
   <script src="/game.js"></script>
 </body>
 </html>
