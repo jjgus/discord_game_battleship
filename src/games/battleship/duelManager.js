@@ -1,6 +1,14 @@
 const { createFleet, addShip, fireAt, isFleetSunk, cellKey } = require('./grid');
 
-const SHIP_LENGTHS = [3, 2, 2];
+const SHIP_CONFIGS = [
+  { id: 'destroyer', name: 'Destroyer', shape: 'straight', length: 3 },
+  { id: 'patrol-a', name: 'Patrol Boat', shape: 'straight', length: 2 },
+  { id: 'patrol-b', name: 'Patrol Boat', shape: 'straight', length: 2 },
+  { id: 'corvette', name: 'Corvette', shape: 'L' },
+];
+
+// Kept for any code that only needs straight-ship lengths
+const SHIP_LENGTHS = SHIP_CONFIGS.filter((c) => c.shape === 'straight').map((c) => c.length);
 
 function createMatch(challengerId, opponentId, { firstTurn, items = {} } = {}) {
   return {
@@ -76,4 +84,4 @@ function takeShot(match, shooterId, row, col) {
   };
 }
 
-module.exports = { createMatch, placeNextShip, bothPlayersReady, opponentOf, takeShot, SHIP_LENGTHS };
+module.exports = { createMatch, placeNextShip, bothPlayersReady, opponentOf, takeShot, SHIP_LENGTHS, SHIP_CONFIGS };

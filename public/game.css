@@ -204,6 +204,13 @@ section {
 }
 
 /* ── Placement ── */
+.ship-icon {
+  height: 44px;
+  width: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.4));
+}
+
 .placement-header {
   display: flex;
   align-items: center;

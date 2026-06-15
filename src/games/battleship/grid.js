@@ -33,6 +33,12 @@ function addShip(fleet, { startRow, startCol, length, orientation, armor = 0 }) 
   return { ships: [...fleet.ships, { cells, hits: [], armorLeft: armor }] };
 }
 
+function addShipFromCells(fleet, cells, armor = 0) {
+  if (!cells.every(({ row, col }) => isInBounds(row, col))) throw new Error('Cannot place ship there');
+  if (!canPlaceShip(fleet.ships, cells)) throw new Error('Cannot place ship there');
+  return { ships: [...fleet.ships, { cells, hits: [], armorLeft: armor }] };
+}
+
 function fireAt(fleet, row, col) {
   let hit = false;
   let armorPierced = false;
@@ -59,4 +65,4 @@ function isFleetSunk(fleet) {
   return fleet.ships.every((ship) => ship.hits.length >= ship.cells.length && ship.armorLeft <= 0);
 }
 
-module.exports = { GRID_SIZE, createFleet, addShip, fireAt, isFleetSunk, buildShipCells, canPlaceShip, cellKey };
+module.exports = { GRID_SIZE, createFleet, addShip, addShipFromCells, fireAt, isFleetSunk, buildShipCells, canPlaceShip, cellKey };

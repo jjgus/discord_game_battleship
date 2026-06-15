@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="43" height="43" viewBox="0 0 43 43">
+  <!-- top-left cell -->
+  <rect x="0"  y="0"  width="20" height="20" rx="3" fill="#1e3a8a" stroke="#3b82f6" stroke-width="1.5"/>
+  <!-- bottom-left cell -->
+  <rect x="0"  y="23" width="20" height="20" rx="3" fill="#1e3a8a" stroke="#3b82f6" stroke-width="1.5"/>
+  <!-- bottom-right cell -->
+  <rect x="23" y="23" width="20" height="20" rx="3" fill="#1e3a8a" stroke="#3b82f6" stroke-width="1.5"/>
+</svg>

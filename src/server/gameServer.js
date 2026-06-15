@@ -3,8 +3,8 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const { randomUUID } = require('crypto');
-const { createFleet, addShip, fireAt, isFleetSunk, cellKey } = require('../games/battleship/grid');
-const { SHIP_LENGTHS } = require('../games/battleship/duelManager');
+const { createFleet, addShip, addShipFromCells, fireAt, isFleetSunk, cellKey } = require('../games/battleship/grid');
+const { SHIP_CONFIGS } = require('../games/battleship/duelManager');
 const { duelReward } = require('../economy/points');
 const { recordResult } = require('../tournament/scheduler');
 
@@ -185,7 +185,7 @@ function sendBothWelcome(session) {
       playerId: pid,
       opponentName: opp.name,
       items: session.items[pid] || [],
-      shipLengths: SHIP_LENGTHS,
+      shipConfigs: SHIP_CONFIGS,
     });
   }
 }
@@ -198,29 +198,38 @@ function handleMessage(session, playerId, msg, { store, discordClient }) {
   if (msg.type === 'place') {
     if (session.phase !== 'placement') return;
     const shipIndex = session.shipCursor[playerId];
-    if (shipIndex >= SHIP_LENGTHS.length) return;
-    const length = SHIP_LENGTHS[shipIndex];
+    if (shipIndex >= SHIP_CONFIGS.length) return;
+    const config = SHIP_CONFIGS[shipIndex];
     const hasArmor = (session.items[playerId] || []).includes('reinforced_hull') && shipIndex === 0;
 
     try {
-      const newFleet = addShip(player.fleet, {
-        startRow: msg.row,
-        startCol: msg.col,
-        length,
-        orientation: msg.orientation || 'horizontal',
-        armor: hasArmor ? 1 : 0,
-      });
+      let newFleet;
+      if (config.shape === 'L') {
+        if (!Array.isArray(msg.cells) || msg.cells.length !== 3) {
+          send(player.ws, { type: 'error', message: 'Invalid L-ship placement.' });
+          return;
+        }
+        newFleet = addShipFromCells(player.fleet, msg.cells, hasArmor ? 1 : 0);
+      } else {
+        newFleet = addShip(player.fleet, {
+          startRow: msg.row,
+          startCol: msg.col,
+          length: config.length,
+          orientation: msg.orientation || 'horizontal',
+          armor: hasArmor ? 1 : 0,
+        });
+      }
       player.fleet = newFleet;
       session.shipCursor[playerId]++;
 
       const nextIndex = session.shipCursor[playerId];
-      const allPlaced = nextIndex >= SHIP_LENGTHS.length;
+      const allPlaced = nextIndex >= SHIP_CONFIGS.length;
 
       send(player.ws, {
         type: 'placed',
         fleet: player.fleet,
         shipIndex: nextIndex,
-        nextShipLength: allPlaced ? null : SHIP_LENGTHS[nextIndex],
+        nextShipConfig: allPlaced ? null : SHIP_CONFIGS[nextIndex],
         allPlaced,
       });
 

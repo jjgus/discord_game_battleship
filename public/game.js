@@ -1,5 +1,22 @@
 const GRID_SIZE = 5;
 
+// L-ship cells for each rotation (relative to anchor = top-left of 2×2 bounding box)
+// Rot 0 ⌐  Rot 1 Γ  Rot 2 └  Rot 3 ┘
+const L_ROTATIONS = [
+  [{ row: 0, col: 0 }, { row: 1, col: 0 }, { row: 1, col: 1 }],
+  [{ row: 0, col: 1 }, { row: 1, col: 0 }, { row: 1, col: 1 }],
+  [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 1, col: 0 }],
+  [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 1, col: 1 }],
+];
+const L_ROTATION_LABELS = ['⌐', 'Γ', '└', '┘'];
+
+const SHIP_ICONS = {
+  destroyer: '/assets/ships/destroyer.svg',
+  'patrol-a': '/assets/ships/patrol.svg',
+  'patrol-b': '/assets/ships/patrol.svg',
+  corvette:   '/assets/ships/corvette.svg',
+};
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const state = {
@@ -7,15 +24,16 @@ const state = {
   playerId: null,
   phase: 'connecting',
   myFleet: { ships: [] },
-  opponentFleet: { ships: [] },  // only revealed hits
-  myShots: [],          // keys I've fired ("row,col")
-  opponentShotsOnMe: [], // keys opponent fired at me
-  shipLengths: [],
+  opponentFleet: { ships: [] },
+  myShots: [],
+  opponentShotsOnMe: [],
+  shipConfigs: [],
   currentShipIndex: 0,
   orientation: 'horizontal',
-  myTurn: false,
+  lRotation: 0,
   hoverCell: null,
-  spyglassCells: [],   // [{row,col}] revealed by spyglass
+  spyglassCells: [],
+  myTurn: false,
   ws: null,
 };
 
@@ -39,7 +57,6 @@ function boot() {
 
   ws.onopen = () => {
     showStatus('Connected');
-    // Give immediate feedback — server message will refine this shortly
     document.querySelector('#phase-connecting p').textContent = 'Connected — waiting for game server…';
   };
   ws.onclose = () => {
@@ -64,7 +81,7 @@ function handleServerMessage(msg) {
       break;
 
     case 'welcome':
-      state.shipLengths = msg.shipLengths;
+      state.shipConfigs = msg.shipConfigs;
       state.myItems = msg.items || [];
       showStatus(`vs ${msg.opponentName}`);
       startPlacement();
@@ -73,14 +90,13 @@ function handleServerMessage(msg) {
     case 'placed':
       state.myFleet = msg.fleet;
       state.currentShipIndex = msg.shipIndex;
+      state.lRotation = 0;
       if (msg.allPlaced) {
         showPhase('waiting-opponent');
         renderFleetGrid('preview-fleet-grid', state.myFleet, [], [], []);
       } else {
         renderPlacementGrid();
-        const shipNum = msg.shipIndex + 1;
-        document.getElementById('placement-info').textContent =
-          `Place ship ${shipNum} of ${state.shipLengths.length} (${msg.nextShipLength} cells)`;
+        updatePlacementInfo(msg.shipIndex, msg.nextShipConfig);
       }
       break;
 
@@ -163,10 +179,8 @@ function handleServerMessage(msg) {
 
 function startPlacement() {
   showPhase('placement');
-  const shipNum = state.currentShipIndex + 1;
-  const len = state.shipLengths[state.currentShipIndex];
-  document.getElementById('placement-info').textContent =
-    `Place ship ${shipNum} of ${state.shipLengths.length} (${len} cells)`;
+  state.lRotation = 0;
+  updatePlacementInfo(state.currentShipIndex, state.shipConfigs[state.currentShipIndex]);
 
   document.getElementById('btn-rotate').addEventListener('click', toggleOrientation);
   document.addEventListener('keydown', (e) => {
@@ -176,15 +190,62 @@ function startPlacement() {
   renderPlacementGrid();
 }
 
+function currentConfig() {
+  return state.shipConfigs[state.currentShipIndex];
+}
+
+function isLShip() {
+  const cfg = currentConfig();
+  return cfg && cfg.shape === 'L';
+}
+
+function updatePlacementInfo(shipIndex, config) {
+  if (!config) return;
+  const shipNum = shipIndex + 1;
+  const total = state.shipConfigs.length;
+  const label = isLShip()
+    ? `${config.name} (L-shape)`
+    : `${config.name} (${config.length} cells)`;
+  document.getElementById('placement-info').textContent = `Ship ${shipNum} of ${total} — ${label}`;
+
+  const iconEl = document.getElementById('ship-icon');
+  if (iconEl) {
+    iconEl.src = SHIP_ICONS[config.id] || '';
+    iconEl.alt = config.name;
+  }
+
+  updateRotateButton();
+}
+
+function updateRotateButton() {
+  const btn = document.getElementById('btn-rotate');
+  if (!btn) return;
+  if (isLShip()) {
+    btn.textContent = `🔄 Rotate (R) ${L_ROTATION_LABELS[state.lRotation]}`;
+  } else {
+    btn.textContent = state.orientation === 'horizontal' ? '🔄 Rotate (R) →H' : '🔄 Rotate (R) ↓V';
+  }
+}
+
 function toggleOrientation() {
-  state.orientation = state.orientation === 'horizontal' ? 'vertical' : 'horizontal';
-  document.getElementById('btn-rotate').textContent =
-    state.orientation === 'horizontal' ? '🔄 Rotate (R) →H' : '🔄 Rotate (R) ↓V';
+  if (isLShip()) {
+    state.lRotation = (state.lRotation + 1) % 4;
+  } else {
+    state.orientation = state.orientation === 'horizontal' ? 'vertical' : 'horizontal';
+  }
+  updateRotateButton();
   if (state.hoverCell) renderPlacementGrid();
   else renderPlacementGrid();
 }
 
-function shipCells(row, col, length, orientation) {
+function lShipCells(anchorRow, anchorCol) {
+  return L_ROTATIONS[state.lRotation].map((offset) => ({
+    row: anchorRow + offset.row,
+    col: anchorCol + offset.col,
+  }));
+}
+
+function straightShipCells(row, col, length, orientation) {
   const cells = [];
   for (let i = 0; i < length; i++) {
     cells.push(orientation === 'horizontal' ? { row, col: col + i } : { row: row + i, col });
@@ -192,9 +253,18 @@ function shipCells(row, col, length, orientation) {
   return cells;
 }
 
+function previewCellsFor(row, col) {
+  const cfg = currentConfig();
+  if (!cfg) return [];
+  if (cfg.shape === 'L') return lShipCells(row, col);
+  return straightShipCells(row, col, cfg.length, state.orientation);
+}
+
 function isValidPlacement(cells) {
   const occupied = new Set(state.myFleet.ships.flatMap((s) => s.cells.map((c) => `${c.row},${c.col}`)));
-  return cells.every(({ row, col }) => row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && !occupied.has(`${row},${col}`));
+  return cells.every(({ row, col }) =>
+    row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && !occupied.has(`${row},${col}`)
+  );
 }
 
 function renderPlacementGrid() {
@@ -202,16 +272,14 @@ function renderPlacementGrid() {
   if (!el) return;
   el.innerHTML = '';
 
-  const len = state.shipLengths[state.currentShipIndex];
   const occupied = new Set(state.myFleet.ships.flatMap((s) => s.cells.map((c) => `${c.row},${c.col}`)));
-  let previewCells = new Set();
+  let previewSet = new Set();
   let previewValid = false;
 
   if (state.hoverCell) {
-    const { row, col } = state.hoverCell;
-    const cells = shipCells(row, col, len, state.orientation);
+    const cells = previewCellsFor(state.hoverCell.row, state.hoverCell.col);
     previewValid = isValidPlacement(cells);
-    cells.forEach((c) => previewCells.add(`${c.row},${c.col}`));
+    cells.forEach((c) => previewSet.add(`${c.row},${c.col}`));
   }
 
   for (let row = 0; row < GRID_SIZE; row++) {
@@ -222,7 +290,7 @@ function renderPlacementGrid() {
 
       if (occupied.has(key)) {
         cell.classList.add('ship');
-      } else if (previewCells.has(key)) {
+      } else if (previewSet.has(key)) {
         cell.classList.add(previewValid ? 'preview' : 'preview-invalid');
         if (previewValid) cell.classList.add('clickable');
       } else {
@@ -247,10 +315,15 @@ function renderPlacementGrid() {
 }
 
 function placeShip(row, col) {
-  const len = state.shipLengths[state.currentShipIndex];
-  const cells = shipCells(row, col, len, state.orientation);
+  const cells = previewCellsFor(row, col);
   if (!isValidPlacement(cells)) return;
-  state.ws.send(JSON.stringify({ type: 'place', row, col, orientation: state.orientation }));
+
+  const cfg = currentConfig();
+  if (cfg.shape === 'L') {
+    state.ws.send(JSON.stringify({ type: 'place', cells }));
+  } else {
+    state.ws.send(JSON.stringify({ type: 'place', row, col, orientation: state.orientation }));
+  }
 }
 
 // ── Battle rendering ──────────────────────────────────────────────────────────
@@ -335,7 +408,7 @@ function renderEnemyGrid() {
   }
 }
 
-function renderFleetGrid(gridId, fleet, opponentShots, spyglassCells) {
+function renderFleetGrid(gridId, fleet) {
   const el = document.getElementById(gridId);
   if (!el) return;
   el.innerHTML = '';
@@ -350,11 +423,7 @@ function renderFleetGrid(gridId, fleet, opponentShots, spyglassCells) {
       const key = `${row},${col}`;
       const cell = document.createElement('div');
       cell.className = 'cell';
-
-      if (shipCellMap.has(key)) {
-        cell.classList.add('ship');
-      }
-
+      if (shipCellMap.has(key)) cell.classList.add('ship');
       el.appendChild(cell);
     }
   }
@@ -397,14 +466,9 @@ function updateFleetStatus() {
   const myStatus = document.getElementById('my-fleet-status');
   const enemyStatus = document.getElementById('enemy-fleet-status');
 
-  if (myStatus) {
-    myStatus.textContent = fleetStatusText(state.myFleet);
-  }
+  if (myStatus) myStatus.textContent = fleetStatusText(state.myFleet);
   if (enemyStatus) {
-    const enemyText = state.opponentFleet.ships.length
-      ? fleetStatusText(state.opponentFleet)
-      : '';
-    enemyStatus.textContent = enemyText;
+    enemyStatus.textContent = state.opponentFleet.ships.length ? fleetStatusText(state.opponentFleet) : '';
   }
 }
 
