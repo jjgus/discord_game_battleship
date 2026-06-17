@@ -22,6 +22,10 @@ function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
     return cache;
   }
 
+  function hasUser(userId) {
+    return Object.prototype.hasOwnProperty.call(cache.users, userId);
+  }
+
   function getUser(userId) {
     if (!cache.users[userId]) {
       cache.users[userId] = defaultUser();
@@ -56,7 +60,7 @@ function createStore({ jsonbinClient, baseUrl, binId, apiKey }) {
     }
   }
 
-  return { load, getUser, updateUser, getAllUsers, getTournament, updateTournament, save };
+  return { load, hasUser, getUser, updateUser, getAllUsers, getTournament, updateTournament, save };
 }
 
 module.exports = { createStore };

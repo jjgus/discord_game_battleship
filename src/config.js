@@ -18,6 +18,8 @@ function loadConfig(env = process.env) {
     discordGuildId: env.DISCORD_GUILD_ID,
     jsonbinApiKey: env.JSONBIN_API_KEY,
     jsonbinBinId: env.JSONBIN_BIN_ID,
+    // Optional — if set, bot commands only work in this channel
+    allowedChannelId: env.ALLOWED_CHANNEL_ID || null,
   };
 }
 

@@ -75,10 +75,37 @@ async function main() {
 
   client.on('interactionCreate', async (interaction) => {
     try {
+      // Channel restriction — silently ignore interactions outside the allowed channel
+      if (config.allowedChannelId && interaction.channelId !== config.allowedChannelId) {
+        if (interaction.isChatInputCommand() || interaction.isButton()) {
+          await interaction.reply({
+            content: `⚓ Bot commands only work in <#${config.allowedChannelId}>.`,
+            ephemeral: true,
+          }).catch(() => {});
+        }
+        return;
+      }
+
       if (interaction.isChatInputCommand()) {
         const command = commands.get(interaction.commandName);
         if (command) {
+          const isNewUser = !store.hasUser(interaction.user.id);
           await command.execute(interaction, context);
+
+          // Announce new registration to the channel with total count
+          if (isNewUser && store.hasUser(interaction.user.id)) {
+            const totalUsers = Object.keys(store.getAllUsers()).length;
+            const announceChannelId = config.allowedChannelId || interaction.channelId;
+            try {
+              const channel = await client.channels.fetch(announceChannelId);
+              await channel.send(
+                `👋 <@${interaction.user.id}> just joined the game! ` +
+                `We now have **${totalUsers}** registered player${totalUsers === 1 ? '' : 's'}.`
+              );
+            } catch (err) {
+              console.error('Registration announcement failed:', err.message);
+            }
+          }
         }
         return;
       }
