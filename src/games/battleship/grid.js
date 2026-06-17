@@ -1,4 +1,4 @@
-const GRID_SIZE = 5;
+const GRID_SIZE = 7;
 
 function cellKey(row, col) { return `${row},${col}`; }
 

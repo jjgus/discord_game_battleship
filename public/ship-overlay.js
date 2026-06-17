@@ -71,7 +71,7 @@
     var nodes = grid.querySelectorAll('.cell');
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, ok = true;
     cells.forEach(function (c) {
-      var el = nodes[c.row * 5 + c.col];
+      var el = nodes[c.row * GRID_SIZE + c.col];
       if (!el) { ok = false; return; }
       x0 = Math.min(x0, el.offsetLeft);
       y0 = Math.min(y0, el.offsetTop);

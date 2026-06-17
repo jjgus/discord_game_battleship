@@ -130,7 +130,7 @@ section {
 /* ── Grid ── */
 .grid {
   display: grid;
-  grid-template-columns: repeat(5, var(--cell));
+  grid-template-columns: repeat(7, var(--cell));
   gap: var(--gap);
   position: relative;   /* anchor for the ship-image overlay */
 }

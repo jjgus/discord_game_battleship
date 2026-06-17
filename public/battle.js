@@ -64,10 +64,20 @@ function handleServerMessage(msg) {
         state.myShots.push(`${msg.row},${msg.col}`);
         state.opponentFleet = msg.opponentFleet;
         patchEnemyCell(msg.row, msg.col, msg.hit);
+        if (msg.hit && !msg.sunk) {
+          // Turn stays with us — show streak banner
+          const banner = document.getElementById('turn-banner');
+          if (banner) { banner.textContent = '🔥 Hit! Fire again!'; banner.className = 'my-turn'; }
+        }
       } else {
         state.opponentShotsOnMe.push(`${msg.row},${msg.col}`);
         state.myFleet = msg.myFleet;
         patchMyCell(msg.row, msg.col);
+        if (msg.hit && !msg.sunk) {
+          // Opponent stays on their turn — update our banner
+          const banner = document.getElementById('turn-banner');
+          if (banner) { banner.textContent = '🔥 Opponent hit! They fire again…'; banner.className = 'opponent-turn'; }
+        }
       }
       updateFleetStatus();
       break;

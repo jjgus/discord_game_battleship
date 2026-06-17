@@ -1,7 +1,7 @@
 // Shared battle rendering — loaded by both game.html (placement page) and battle.html.
 // References globals: state, $myGridCells, $enemyGridCells (defined by the page script).
 
-const GRID_SIZE = 5;
+const GRID_SIZE = 7;
 
 // ── Grid construction ─────────────────────────────────────────────────────────
 

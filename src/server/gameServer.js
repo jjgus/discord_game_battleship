@@ -335,7 +335,8 @@ function handleMessage(session, playerId, msg, { store, discordClient }) {
 
     if (sunk) {
       endGame(session, playerId, otherId, { store, discordClient });
-    } else {
+    } else if (!hit) {
+      // only switch turn on a miss — a hit keeps the current player firing
       session.turn = otherId;
       send(player.ws, { type: 'turnChange', yourTurn: false });
       send(other.ws, { type: 'turnChange', yourTurn: true });
