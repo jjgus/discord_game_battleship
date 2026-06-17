@@ -80,6 +80,61 @@ function startGameServer({ port = 3000, store, discordClient } = {}) {
     `);
   });
 
+  app.get('/test', (req, res) => {
+    const matchId = createWebMatch({
+      channelId: 'test-channel',
+      challengerId: 'player1',
+      challengerName: 'Player 1',
+      opponentId: 'player2',
+      opponentName: 'Player 2',
+      items: { player1: [], player2: [] },
+      firstTurn: null,
+    });
+    const base = `${req.protocol}://${req.get('host')}`;
+    const p1 = `${base}/game/${matchId}?p=player1`;
+    const p2 = `${base}/game/${matchId}?p=player2`;
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>⚓ Battleship — Test Match</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#050b15;color:#e3edfb;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;padding:40px 16px}
+  h1{font-size:1.6rem;letter-spacing:.04em}
+  .subtitle{color:#8aa2c2;font-size:.9rem}
+  .cards{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+  .card{background:#091525;border:1px solid #294462;border-radius:12px;padding:28px 32px;display:flex;flex-direction:column;gap:16px;align-items:center;min-width:260px}
+  .card h2{font-size:1rem;font-weight:700;color:#2fd6cf;letter-spacing:.08em;text-transform:uppercase}
+  .link-box{background:#050b15;border:1px solid #294462;border-radius:6px;padding:10px 14px;font-size:.8rem;color:#8aa2c2;word-break:break-all;text-align:center;width:100%}
+  .btn{display:inline-block;padding:11px 28px;background:#2fd6cf;color:#050b15;font-weight:700;font-size:.95rem;border-radius:6px;text-decoration:none;letter-spacing:.02em;transition:background .15s}
+  .btn:hover{background:#6fe6df}
+  .note{font-size:.78rem;color:#8aa2c2;text-align:center;max-width:480px;line-height:1.6}
+  .badge{font-size:.7rem;background:#0d2744;border:1px solid #2fd6cf33;color:#2fd6cf;padding:3px 9px;border-radius:20px;letter-spacing:.05em}
+</style>
+</head>
+<body>
+  <h1>⚓ Battleship — Test Match</h1>
+  <p class="subtitle">A fresh match was created. Open each link in a separate browser tab.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="badge">TAB 1</span>
+      <h2>Player 1</h2>
+      <div class="link-box">${p1}</div>
+      <a class="btn" href="${p1}" target="_blank">Open Player 1 →</a>
+    </div>
+    <div class="card">
+      <span class="badge">TAB 2</span>
+      <h2>Player 2</h2>
+      <div class="link-box">${p2}</div>
+      <a class="btn" href="${p2}" target="_blank">Open Player 2 →</a>
+    </div>
+  </div>
+  <p class="note">Each visit to <code>/test</code> creates a new match. Both tabs must stay open — closing one disconnects that player.</p>
+</body>
+</html>`);
+  });
+
   app.get('/game/:matchId', (req, res) => {
     const session = sessions.get(req.params.matchId);
     const playerId = req.query.p;
