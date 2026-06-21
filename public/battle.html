@@ -50,7 +50,12 @@
   </div>
 
   <script src="/grid.js"></script>
+  <script src="/sfx.js"></script>
   <script src="/battle.js"></script>
   <script src="/ship-overlay.js"></script>
+  <script>
+    // Unlock Web Audio on first interaction (browsers block audio until a gesture)
+    document.addEventListener('pointerdown', () => BattleshipSFX.unlock(), { once: true });
+  </script>
 </body>
 </html>

@@ -157,6 +157,7 @@ function fireShot(row, col) {
   if (!state.myTurn) return;
   if (!state.ws || state.ws.readyState !== 1) return;
   state.ws.send(JSON.stringify({ type: 'shoot', row, col }));
+  if (window.BattleshipSFX) BattleshipSFX.play('fire');
 }
 
 function flashCell(cellEl) {

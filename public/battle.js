@@ -60,6 +60,7 @@ function handleServerMessage(msg) {
       break;
 
     case 'shotResult':
+      if (window.BattleshipSFX) BattleshipSFX.play(msg.sunk ? 'sunk' : msg.hit ? 'hit' : 'miss');
       if (msg.isYourShot) {
         state.myShots.push(`${msg.row},${msg.col}`);
         state.opponentFleet = msg.opponentFleet;
@@ -84,6 +85,7 @@ function handleServerMessage(msg) {
 
     case 'turnChange':
       state.myTurn = msg.yourTurn;
+      if (msg.yourTurn && window.BattleshipSFX) BattleshipSFX.play('sonar');
       updateTurnBanner();
       refreshEnemyClickability();
       break;
@@ -110,6 +112,7 @@ function handleServerMessage(msg) {
 
 function showGameOver(isWinner, winnerName) {
   state.phase = 'done';
+  if (window.BattleshipSFX) BattleshipSFX.play(isWinner ? 'win' : 'lose');
   document.getElementById('result-icon').textContent = isWinner ? '🏆' : '💀';
   document.getElementById('result-title').textContent = isWinner ? 'Victory!' : 'Defeated!';
   document.getElementById('result-sub').textContent = isWinner
