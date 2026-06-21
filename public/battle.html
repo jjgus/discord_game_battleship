@@ -11,6 +11,7 @@
     <header>
       <h1>⚔️ Battleship</h1>
       <div id="status-bar"></div>
+      <button id="audio-toggle" title="Toggle sound" aria-label="Toggle sound" style="margin-left:auto;font-size:20px;line-height:1;background:none;border:none;cursor:pointer;padding:4px 8px;">🔊</button>
     </header>
 
     <main>
@@ -51,11 +52,35 @@
 
   <script src="/grid.js"></script>
   <script src="/sfx.js"></script>
+  <script src="/music.js"></script>
   <script src="/battle.js"></script>
   <script src="/ship-overlay.js"></script>
   <script>
-    // Unlock Web Audio on first interaction (browsers block audio until a gesture)
-    document.addEventListener('pointerdown', () => BattleshipSFX.unlock(), { once: true });
+    // Web Audio needs a user gesture before it can play. Track unlock + a
+    // sound on/off preference; battle.js calls window.startMusic() when the
+    // battle phase begins.
+    window.__audio = { on: true, unlocked: false };
+
+    window.startMusic = function () {
+      if (window.__audio.on && window.__audio.unlocked && state.phase === 'battle') {
+        BattleshipMusic.start();
+      }
+    };
+
+    document.addEventListener('pointerdown', () => {
+      window.__audio.unlocked = true;
+      BattleshipSFX.unlock();
+      window.startMusic();
+    }, { once: true });
+
+    const audioBtn = document.getElementById('audio-toggle');
+    audioBtn.addEventListener('click', () => {
+      window.__audio.on = !window.__audio.on;
+      BattleshipSFX.muted = !window.__audio.on;
+      if (window.__audio.on) { window.startMusic(); }
+      else { BattleshipMusic.stop(); }
+      audioBtn.textContent = window.__audio.on ? '🔊' : '🔇';
+    });
   </script>
 </body>
 </html>

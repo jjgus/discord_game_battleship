@@ -56,6 +56,7 @@ function handleServerMessage(msg) {
       state.spyglassCells = msg.spyglassCells || [];
       showPhase('battle');
       buildBattleGrids();
+      if (window.startMusic) window.startMusic();
       if (state.spyglassCells.length) showSpyglassBanner();
       break;
 
@@ -112,6 +113,7 @@ function handleServerMessage(msg) {
 
 function showGameOver(isWinner, winnerName) {
   state.phase = 'done';
+  if (window.BattleshipMusic) BattleshipMusic.stop();
   if (window.BattleshipSFX) BattleshipSFX.play(isWinner ? 'win' : 'lose');
   document.getElementById('result-icon').textContent = isWinner ? '🏆' : '💀';
   document.getElementById('result-title').textContent = isWinner ? 'Victory!' : 'Defeated!';
@@ -123,6 +125,7 @@ function showGameOver(isWinner, winnerName) {
 
 function showCancelled(message) {
   state.phase = 'done';
+  if (window.BattleshipMusic) BattleshipMusic.stop();
   document.getElementById('result-icon').textContent = '🚫';
   document.getElementById('result-title').textContent = 'Cancelled';
   document.getElementById('result-sub').textContent = message || 'The duel was cancelled.';
