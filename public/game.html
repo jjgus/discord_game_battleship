@@ -51,7 +51,36 @@
 
   <script>window.__GAME_DATA__ = {}</script>
   <script src="/grid.js"></script>
+  <script src="/sfx.js"></script>
+  <script src="/music.js"></script>
   <script src="/game.js"></script>
   <script src="/ship-overlay.js"></script>
+  <script>
+    window.__audio = { on: true, unlocked: false };
+
+    window.startMusic = function () {
+      if (window.__audio.on && window.__audio.unlocked) {
+        BattleshipMusic.start();
+      }
+    };
+
+    document.addEventListener('pointerdown', function unlockAudio(e) {
+      window.__audio.unlocked = true;
+      BattleshipSFX.unlock();
+      if (!e.target.closest('#audio-toggle')) {
+        window.startMusic();
+      }
+      document.removeEventListener('pointerdown', unlockAudio);
+    });
+
+    const audioBtn = document.getElementById('audio-toggle');
+    audioBtn.addEventListener('click', () => {
+      window.__audio.on = !window.__audio.on;
+      BattleshipSFX.muted = !window.__audio.on;
+      if (window.__audio.on) { window.startMusic(); }
+      else { BattleshipMusic.stop(); }
+      audioBtn.textContent = window.__audio.on ? '🔊' : '🔇';
+    });
+  </script>
 </body>
 </html>

@@ -56,9 +56,6 @@
   <script src="/battle.js"></script>
   <script src="/ship-overlay.js"></script>
   <script>
-    // Web Audio needs a user gesture before it can play. Track unlock + a
-    // sound on/off preference; battle.js calls window.startMusic() when the
-    // battle phase begins.
     window.__audio = { on: true, unlocked: false };
 
     window.startMusic = function () {
@@ -67,11 +64,16 @@
       }
     };
 
-    document.addEventListener('pointerdown', () => {
+    // Unlock Web Audio on first interaction. Skip auto-starting music when the
+    // first gesture is the toggle button — its click handler manages that case.
+    document.addEventListener('pointerdown', function unlockAudio(e) {
       window.__audio.unlocked = true;
       BattleshipSFX.unlock();
-      window.startMusic();
-    }, { once: true });
+      if (!e.target.closest('#audio-toggle')) {
+        window.startMusic();
+      }
+      document.removeEventListener('pointerdown', unlockAudio);
+    });
 
     const audioBtn = document.getElementById('audio-toggle');
     audioBtn.addEventListener('click', () => {
