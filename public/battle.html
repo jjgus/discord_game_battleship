@@ -11,7 +11,7 @@
     <header>
       <h1>⚔️ Battleship</h1>
       <div id="status-bar"></div>
-      <button id="audio-toggle" title="Toggle sound" aria-label="Toggle sound" style="margin-left:auto;font-size:20px;line-height:1;background:none;border:none;cursor:pointer;padding:4px 8px;">🔊</button>
+      <button id="audio-toggle" title="Toggle sound" aria-label="Toggle sound" style="margin-left:auto;font-size:20px;line-height:1;background:none;border:none;cursor:pointer;padding:4px 8px;">🔇</button>
     </header>
 
     <main>
@@ -56,32 +56,38 @@
   <script src="/battle.js"></script>
   <script src="/ship-overlay.js"></script>
   <script>
-    window.__audio = { on: true, unlocked: false };
+    window.__audio = { on: false, unlocked: false };
 
     window.startMusic = function () {
-      if (window.__audio.on && window.__audio.unlocked && state.phase === 'battle') {
-        BattleshipMusic.start();
-      }
+      if (window.__audio.on && window.__audio.unlocked) BattleshipMusic.start();
     };
 
-    // Unlock Web Audio on first interaction. Skip auto-starting music when the
-    // first gesture is the toggle button — its click handler manages that case.
+    const audioBtn = document.getElementById('audio-toggle');
+
+    // First interaction: unlock Web Audio. Auto-start music unless the user's
+    // first gesture is the toggle button (toggle click manages that case itself).
     document.addEventListener('pointerdown', function unlockAudio(e) {
+      document.removeEventListener('pointerdown', unlockAudio);
       window.__audio.unlocked = true;
       BattleshipSFX.unlock();
       if (!e.target.closest('#audio-toggle')) {
+        window.__audio.on = true;
+        BattleshipSFX.muted = false;
+        audioBtn.textContent = '🔊';
         window.startMusic();
       }
-      document.removeEventListener('pointerdown', unlockAudio);
     });
 
-    const audioBtn = document.getElementById('audio-toggle');
     audioBtn.addEventListener('click', () => {
+      if (!window.__audio.unlocked) {
+        window.__audio.unlocked = true;
+        BattleshipSFX.unlock();
+      }
       window.__audio.on = !window.__audio.on;
       BattleshipSFX.muted = !window.__audio.on;
-      if (window.__audio.on) { window.startMusic(); }
-      else { BattleshipMusic.stop(); }
       audioBtn.textContent = window.__audio.on ? '🔊' : '🔇';
+      if (window.__audio.on) window.startMusic();
+      else BattleshipMusic.stop();
     });
   </script>
 </body>
